@@ -51,6 +51,25 @@ class NoteItem {
   );
 }
 
+String _formatCurrentDate() {
+  final now = DateTime.now();
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec'
+  ];
+  return '${months[now.month - 1]} ${now.day}, ${now.year}';
+}
+
 class NotesScreen extends StatefulWidget {
   const NotesScreen({super.key});
 
@@ -131,6 +150,207 @@ class _NotesScreenState extends State<NotesScreen> {
     } catch (_) {}
   }
 
+  Future<void> _showCreateNoteDialog() async {
+    final titleController = TextEditingController();
+    final subjectController = TextEditingController();
+
+    final created = await showDialog<NoteItem>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          backgroundColor: AppColors.surface,
+          elevation: 8,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: Padding(
+              padding: const EdgeInsets.all(22.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(
+                          Icons.note_add_rounded,
+                          color: AppColors.primary,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'Create Note',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textDark,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.black.withValues(alpha: 0.08),
+                      ),
+                    ),
+                    child: TextField(
+                      key: const Key('create_note_title_field'),
+                      controller: titleController,
+                      autofocus: true,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textDark,
+                      ),
+                      decoration: const InputDecoration(
+                        hintText: 'Title',
+                        hintStyle: TextStyle(
+                          color: AppColors.textLight,
+                          fontSize: 14,
+                          fontWeight: FontWeight.normal,
+                        ),
+                        border: InputBorder.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.black.withValues(alpha: 0.08),
+                      ),
+                    ),
+                    child: TextField(
+                      key: const Key('create_note_subject_field'),
+                      controller: subjectController,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.primary,
+                      ),
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(
+                          Icons.label_outline_rounded,
+                          color: AppColors.primary,
+                          size: 18,
+                        ),
+                        prefixIconConstraints: BoxConstraints(
+                          minWidth: 26,
+                          minHeight: 26,
+                        ),
+                        hintText: 'Subject',
+                        hintStyle: TextStyle(
+                          color: AppColors.textLight,
+                          fontSize: 14,
+                          fontWeight: FontWeight.normal,
+                        ),
+                        border: InputBorder.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        key: const Key('cancel_create_note_button'),
+                        onPressed: () => Navigator.pop(dialogContext),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.textLight,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                        ),
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        key: const Key('dialog_create_note_button'),
+                        onPressed: () {
+                          final rawTitle = titleController.text.trim();
+                          final rawSubject = subjectController.text.trim();
+                          final title =
+                              rawTitle.isEmpty ? 'Untitled Note' : rawTitle;
+                          final subject =
+                              rawSubject.isEmpty ? 'General' : rawSubject;
+
+                          final note = NoteItem(
+                            id: DateTime.now().millisecondsSinceEpoch.toString(),
+                            title: title,
+                            subject: subject,
+                            content: '',
+                            date: _formatCurrentDate(),
+                          );
+                          Navigator.pop(dialogContext, note);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 10,
+                          ),
+                        ),
+                        child: const Text(
+                          'Create',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    if (created != null) {
+      setState(() {
+        _cachedNotes.insert(0, created);
+      });
+      await _persistNotes();
+    }
+  }
+
   Future<void> _openNoteEditor({NoteItem? note}) async {
     final result = await Navigator.push<NoteItem>(
       context,
@@ -175,7 +395,7 @@ class _NotesScreenState extends State<NotesScreen> {
         elevation: 0,
         actions: [
           TextButton.icon(
-            onPressed: () => _openNoteEditor(),
+            onPressed: () => _showCreateNoteDialog(),
             icon: const Icon(Icons.add, color: Colors.white, size: 18),
             label: const Text(
               'Add Note',
@@ -343,7 +563,7 @@ class _NotesScreenState extends State<NotesScreen> {
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
-        onPressed: () => _openNoteEditor(),
+        onPressed: () => _showCreateNoteDialog(),
         icon: const Icon(Icons.add_rounded),
         label: const Text(
           'Create Note',
@@ -386,24 +606,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     super.dispose();
   }
 
-  String _formatDate() {
-    final now = DateTime.now();
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec'
-    ];
-    return '${months[now.month - 1]} ${now.day}, ${now.year}';
-  }
+  String _formatDate() => _formatCurrentDate();
 
   void _saveNote() {
     final rawTitle = _titleController.text.trim();

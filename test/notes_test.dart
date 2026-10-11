@@ -26,36 +26,71 @@ void main() {
     expect(find.text('My Notes'), findsOneWidget);
     expect(find.text('Calculus Derivatives & Integrals'), findsOneWidget);
 
-    // 1. TEST CREATING A NOTE
+    // 1. TEST CREATING A NOTE VIA POPUP DIALOG
     // Tap Create Note button
     await tester.tap(find.text('Create Note'));
     await tester.pumpAndSettle();
 
-    expect(find.text('New Note'), findsOneWidget);
-    expect(find.byKey(const Key('save_note_button')), findsOneWidget);
+    // Verify centered popup dialog is shown with Title and Subject inputs and Cancel/Create buttons
+    expect(find.byType(Dialog), findsOneWidget);
+    expect(find.byKey(const Key('create_note_title_field')), findsOneWidget);
+    expect(find.byKey(const Key('create_note_subject_field')), findsOneWidget);
+    expect(find.text('Cancel'), findsOneWidget);
+    expect(find.text('Create'), findsOneWidget);
 
-    // Fill in new note details
-    await tester.enterText(
-        find.byKey(const Key('note_title_field')), 'Linear Algebra Eigenvalues');
-    await tester.enterText(
-        find.byKey(const Key('note_subject_field')), 'Mathematics');
-    await tester.enterText(find.byKey(const Key('note_content_field')),
-        'Characteristic equation: det(A - lambda * I) = 0.');
+    // Test Cancel button dismisses dialog without adding note
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.byType(Dialog), findsNothing);
 
-    // Save the new note
-    await tester.tap(find.byKey(const Key('save_note_button')));
+    // Tap Create Note again to actually create the note
+    await tester.tap(find.text('Create Note'));
     await tester.pumpAndSettle();
 
-    // Verify note is saved and present in the list
-    expect(find.text('Linear Algebra Eigenvalues'), findsOneWidget);
-    expect(find.text('Note saved successfully!'), findsOneWidget);
+    // Fill in Title and Subject in popup dialog
+    await tester.enterText(
+        find.byKey(const Key('create_note_title_field')), 'Linear Algebra Eigenvalues');
+    await tester.enterText(
+        find.byKey(const Key('create_note_subject_field')), 'Mathematics');
 
-    // 2. TEST REOPENING AND VERIFYING CONTENT
+    // Click Create button
+    await tester.tap(find.text('Create'));
+    await tester.pumpAndSettle();
+
+    // Verify popup dialog is closed and note appears in the Notes list
+    expect(find.byType(Dialog), findsNothing);
+    expect(find.text('Linear Algebra Eigenvalues'), findsOneWidget);
+
+    // 2. TEST CLICKING THE NOTE TO OPEN FULL EDITOR AND ADDING CONTENT
     await tester.tap(find.text('Linear Algebra Eigenvalues'));
     await tester.pumpAndSettle();
 
     expect(find.text('Edit Note'), findsOneWidget);
+    expect(find.byKey(const Key('save_note_button')), findsOneWidget);
     final titleFieldFinder = find.byKey(const Key('note_title_field'));
+    expect(
+      (tester.widget(titleFieldFinder) as TextField).controller!.text,
+      'Linear Algebra Eigenvalues',
+    );
+    final subjectFieldFinder = find.byKey(const Key('note_subject_field'));
+    expect(
+      (tester.widget(subjectFieldFinder) as TextField).controller!.text,
+      'Mathematics',
+    );
+
+    // Add detailed content in full editor
+    await tester.enterText(find.byKey(const Key('note_content_field')),
+        'Characteristic equation: det(A - lambda * I) = 0.');
+    await tester.tap(find.byKey(const Key('save_note_button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Note saved successfully!'), findsOneWidget);
+
+    // Reopen to verify content and perform additional edits
+    await tester.tap(find.text('Linear Algebra Eigenvalues'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit Note'), findsOneWidget);
     expect(
       (tester.widget(titleFieldFinder) as TextField).controller!.text,
       'Linear Algebra Eigenvalues',
