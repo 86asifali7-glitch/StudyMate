@@ -1,7 +1,16 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../core/colors.dart';
+
+// ── Notes screen design tokens (mirrors Home screen palette) ─────────────────
+const _kNBg       = Color(0xFFEEF0FF); // lavender page background
+const _kNCard     = Color(0xFFFFFFFF); // white card
+const _kNPrimary  = Color(0xFF5B6CF9); // indigo accent
+const _kNPriDark  = Color(0xFF4152E8); // gradient stop
+const _kNHead     = Color(0xFF1A1A2E); // heading text
+const _kNBody     = Color(0xFF6B7280); // body / muted text
+const _kNSep      = Color(0xFFE5E5EA); // hairline separator
 
 class NoteItem {
   final String id;
@@ -43,11 +52,11 @@ class NoteItem {
   };
 
   factory NoteItem.fromMap(Map<String, dynamic> map) => NoteItem(
-    id: map['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
-    title: map['title'] ?? 'Untitled Note',
-    subject: map['subject'] ?? 'General',
-    content: map['content'] ?? '',
-    date: map['date'] ?? 'Today',
+    id: (map['id'] ?? DateTime.now().millisecondsSinceEpoch.toString()).toString(),
+    title: (map['title'] ?? 'Untitled Note').toString(),
+    subject: (map['subject'] ?? 'General').toString(),
+    content: (map['content'] ?? '').toString(),
+    date: (map['date'] ?? 'Today').toString(),
   );
 }
 
@@ -150,6 +159,21 @@ class _NotesScreenState extends State<NotesScreen> {
     } catch (_) {}
   }
 
+  // ── search query ─────────────────────────────────────────────────────────
+  String _searchQuery = '';
+
+  List<NoteItem> get _filteredNotes {
+    final query = (_searchQuery as dynamic)?.toString().trim() ?? '';
+    if (query.isEmpty) return _cachedNotes;
+    final q = query.toLowerCase();
+    return _cachedNotes
+        .where((n) =>
+            (n.title as dynamic)?.toString().toLowerCase().contains(q) == true ||
+            (n.subject as dynamic)?.toString().toLowerCase().contains(q) == true ||
+            (n.content as dynamic)?.toString().toLowerCase().contains(q) == true)
+        .toList();
+  }
+
   Future<void> _showCreateNoteDialog() async {
     final titleController = TextEditingController();
     final subjectController = TextEditingController();
@@ -160,183 +184,133 @@ class _NotesScreenState extends State<NotesScreen> {
       builder: (dialogContext) {
         return Dialog(
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(24),
           ),
-          backgroundColor: AppColors.surface,
-          elevation: 8,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 400),
-            child: Padding(
-              padding: const EdgeInsets.all(22.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(10),
+          backgroundColor: _kNCard,
+          elevation: 0,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 24, 22, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Header
+                Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [_kNPrimary, _kNPriDark],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
-                        child: const Icon(
-                          Icons.note_add_rounded,
-                          color: AppColors.primary,
-                          size: 22,
-                        ),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      const SizedBox(width: 12),
-                      const Text(
-                        'Create Note',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textDark,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 4,
+                      child: const Icon(Icons.note_add_rounded,
+                          color: Colors.white, size: 20),
                     ),
-                    decoration: BoxDecoration(
-                      color: AppColors.background,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Colors.black.withValues(alpha: 0.08),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'New Note',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: _kNHead,
+                        letterSpacing: -0.3,
                       ),
                     ),
-                    child: TextField(
-                      key: const Key('create_note_title_field'),
-                      controller: titleController,
-                      autofocus: true,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textDark,
-                      ),
-                      decoration: const InputDecoration(
-                        hintText: 'Title',
-                        hintStyle: TextStyle(
-                          color: AppColors.textLight,
-                          fontSize: 14,
-                          fontWeight: FontWeight.normal,
-                        ),
-                        border: InputBorder.none,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.background,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Colors.black.withValues(alpha: 0.08),
-                      ),
-                    ),
-                    child: TextField(
-                      key: const Key('create_note_subject_field'),
-                      controller: subjectController,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.primary,
-                      ),
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(
-                          Icons.label_outline_rounded,
-                          color: AppColors.primary,
-                          size: 18,
-                        ),
-                        prefixIconConstraints: BoxConstraints(
-                          minWidth: 26,
-                          minHeight: 26,
-                        ),
-                        hintText: 'Subject',
-                        hintStyle: TextStyle(
-                          color: AppColors.textLight,
-                          fontSize: 14,
-                          fontWeight: FontWeight.normal,
-                        ),
-                        border: InputBorder.none,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 22),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
+                  ],
+                ),
+                const SizedBox(height: 20),
+                // Title field
+                _DialogField(
+                  controller: titleController,
+                  hintText: 'Title',
+                  autofocus: true,
+                  testKey: const Key('create_note_title_field'),
+                  fontWeight: FontWeight.w600,
+                ),
+                const SizedBox(height: 10),
+                // Subject field
+                _DialogField(
+                  controller: subjectController,
+                  hintText: 'Subject (e.g. Mathematics)',
+                  prefixIcon: Icons.label_outline_rounded,
+                  testKey: const Key('create_note_subject_field'),
+                ),
+                const SizedBox(height: 22),
+                // Actions
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
                         key: const Key('cancel_create_note_button'),
                         onPressed: () => Navigator.pop(dialogContext),
                         style: TextButton.styleFrom(
-                          foregroundColor: AppColors.textLight,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 10,
-                          ),
-                        ),
-                        child: const Text(
-                          'Cancel',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      ElevatedButton(
-                        key: const Key('dialog_create_note_button'),
-                        onPressed: () {
-                          final rawTitle = titleController.text.trim();
-                          final rawSubject = subjectController.text.trim();
-                          final title =
-                              rawTitle.isEmpty ? 'Untitled Note' : rawTitle;
-                          final subject =
-                              rawSubject.isEmpty ? 'General' : rawSubject;
-
-                          final note = NoteItem(
-                            id: DateTime.now().millisecondsSinceEpoch.toString(),
-                            title: title,
-                            subject: subject,
-                            content: '',
-                            date: _formatCurrentDate(),
-                          );
-                          Navigator.pop(dialogContext, note);
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
+                          foregroundColor: _kNBody,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 10,
+                            side: BorderSide(color: _kNSep),
                           ),
                         ),
-                        child: const Text(
-                          'Create',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
+                        child: const Text('Cancel',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w600, fontSize: 14)),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [_kNPrimary, _kNPriDark],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: ElevatedButton(
+                          key: const Key('dialog_create_note_button'),
+                          onPressed: () {
+                            final rawTitle = titleController.text.trim();
+                            final rawSubject = subjectController.text.trim();
+                            final title =
+                                rawTitle.isEmpty ? 'Untitled Note' : rawTitle;
+                            final subject =
+                                rawSubject.isEmpty ? 'General' : rawSubject;
+                            final note = NoteItem(
+                              id: DateTime.now()
+                                  .millisecondsSinceEpoch
+                                  .toString(),
+                              title: title,
+                              subject: subject,
+                              content: '',
+                              date: _formatCurrentDate(),
+                            );
+                            Navigator.pop(dialogContext, note);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text('Create',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w700, fontSize: 14)),
                         ),
                       ),
-                    ],
-                  ),
-                ],
-              ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         );
@@ -388,188 +362,213 @@ class _NotesScreenState extends State<NotesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    SystemChrome.setSystemUIOverlayStyle(
+      SystemUiOverlayStyle.dark.copyWith(statusBarColor: Colors.transparent),
+    );
+
+    final notes = _filteredNotes;
+
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: const Text('My Notes'),
-        elevation: 0,
-        actions: [
-          TextButton.icon(
-            onPressed: () => _showCreateNoteDialog(),
-            icon: const Icon(Icons.add, color: Colors.white, size: 18),
-            label: const Text(
-              'Add Note',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-      body: _cachedNotes.isEmpty
-          ? Center(
+      backgroundColor: _kNBg,
+      // ── No AppBar — custom header in body ──
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+
+            // ── Header ──────────────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    Icons.note_alt_outlined,
-                    size: 64,
-                    color: AppColors.primary.withValues(alpha: 0.3),
-                  ),
-                  const SizedBox(height: 12),
                   const Text(
-                    'No notes yet',
+                    'My Notes',
                     style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textDark,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                      color: _kNHead,
+                      letterSpacing: -0.5,
+                      height: 1.1,
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const Text(
-                    'Tap "Create Note" to add your first study note!',
-                    style: TextStyle(
-                      color: AppColors.textLight,
+                  Text(
+                    '${_cachedNotes.length} note${_cachedNotes.length == 1 ? '' : 's'} saved',
+                    style: const TextStyle(
                       fontSize: 14,
+                      color: _kNBody,
+                      fontWeight: FontWeight.w400,
                     ),
                   ),
                 ],
               ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              itemCount: _cachedNotes.length,
-              itemBuilder: (context, index) {
-                final note = _cachedNotes[index];
-                final snippet = note.content.trim().isNotEmpty
-                    ? note.content.replaceAll('\n', ' ')
-                    : 'No additional details';
-
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: Colors.black.withValues(alpha: 0.05),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.03),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(16),
-                      onTap: () => _openNoteEditor(note: note),
-                      child: Padding(
-                        padding: const EdgeInsets.all(14.0),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: AppColors.primary.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(
-                                Icons.description_rounded,
-                                color: AppColors.primary,
-                                size: 24,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    note.title,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                      color: AppColors.textDark,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 6,
-                                          vertical: 2,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.primary
-                                              .withValues(alpha: 0.08),
-                                          borderRadius:
-                                              BorderRadius.circular(6),
-                                        ),
-                                        child: Text(
-                                          note.subject,
-                                          style: const TextStyle(
-                                            color: AppColors.primary,
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        note.date,
-                                        style: const TextStyle(
-                                          color: AppColors.textLight,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    snippet,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: AppColors.textLight,
-                                      fontSize: 13,
-                                      height: 1.3,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.delete_outline_rounded,
-                                color: Colors.redAccent,
-                                size: 20,
-                              ),
-                              onPressed: () => _deleteNote(index),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              },
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        onPressed: () => _showCreateNoteDialog(),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text(
-          'Create Note',
-          style: TextStyle(fontWeight: FontWeight.bold),
+
+            const SizedBox(height: 16),
+
+            // ── Search bar ──────────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: _kNCard,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.06),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: TextField(
+                  onChanged: (v) => setState(() => _searchQuery = v),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: _kNHead,
+                    fontWeight: FontWeight.w400,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Search notes…',
+                    hintStyle: const TextStyle(
+                      color: _kNBody,
+                      fontSize: 14,
+                    ),
+                    prefixIcon: const Icon(Icons.search_rounded,
+                        color: _kNBody, size: 20),
+                    border: InputBorder.none,
+                    contentPadding:
+                        const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // ── Notes list ──────────────────────────────────────────────────
+            Expanded(
+              child: notes.isEmpty
+                  ? _buildEmptyState()
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        final width = constraints.maxWidth;
+                        final int crossAxisCount;
+                        if (width < 340) {
+                          crossAxisCount = 1;
+                        } else if (width >= 960) {
+                          crossAxisCount = 4;
+                        } else if (width >= 640) {
+                          crossAxisCount = 3;
+                        } else {
+                          crossAxisCount = 2; // Two columns on mobile
+                        }
+
+                        return GridView.builder(
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
+                          physics: const BouncingScrollPhysics(),
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: crossAxisCount,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                            mainAxisExtent: 176,
+                          ),
+                          itemCount: notes.length,
+                          itemBuilder: (context, index) {
+                            final note = notes[index];
+                            final globalIndex = _cachedNotes.indexOf(note);
+                            return _NoteCard(
+                              note: note,
+                              onTap: () => _openNoteEditor(note: note),
+                              onDelete: () => _deleteNote(globalIndex),
+                            );
+                          },
+                        );
+                      },
+                    ),
+            ),
+          ],
         ),
+      ),
+
+      // ── New Note button (above nav bar) ─────────────────────────────────
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.fromLTRB(32, 0, 32, 8),
+        child: SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [_kNPrimary, _kNPriDark],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: _kNPrimary.withValues(alpha: 0.35),
+                  blurRadius: 14,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: ElevatedButton.icon(
+              onPressed: _showCreateNoteDialog,
+              icon: const Icon(Icons.add_rounded, size: 20),
+              label: const Text(
+                'New Note',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: _kNPrimary.withValues(alpha: 0.10),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.note_alt_outlined,
+                size: 38, color: _kNPrimary.withValues(alpha: 0.6)),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'No notes yet',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: _kNHead,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Tap "New Note" to capture your first idea.',
+            style: TextStyle(color: _kNBody, fontSize: 14),
+          ),
+        ],
       ),
     );
   }
@@ -640,136 +639,143 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   Widget build(BuildContext context) {
     final isNew = widget.note == null;
 
+    SystemChrome.setSystemUIOverlayStyle(
+      SystemUiOverlayStyle.dark.copyWith(statusBarColor: Colors.transparent),
+    );
+
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text(isNew ? 'New Note' : 'Edit Note'),
-        elevation: 0,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12.0),
-            child: Center(
-              child: ElevatedButton.icon(
-                key: const Key('save_note_button'),
-                onPressed: _saveNote,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: AppColors.primary,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
+      backgroundColor: _kNBg,
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ── Editor top bar ─────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: Row(
+                children: [
+                  // Back button
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: _kNCard,
+                        borderRadius: BorderRadius.circular(11),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.07),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(Icons.arrow_back_ios_new_rounded,
+                          size: 16, color: _kNHead),
+                    ),
                   ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      isNew ? 'New Note' : 'Edit Note',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: _kNHead,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
                   ),
-                ),
-                icon: const Icon(Icons.check_circle_rounded, size: 18),
-                label: const Text(
-                  'Save',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
+                  // Save button
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [_kNPrimary, _kNPriDark],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: _kNPrimary.withValues(alpha: 0.30),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: ElevatedButton.icon(
+                      key: const Key('save_note_button'),
+                      onPressed: _saveNote,
+                      icon: const Icon(Icons.check_rounded, size: 16),
+                      label: const Text(
+                        'Save',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 14),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 18, vertical: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Title Field Container
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: Colors.black.withValues(alpha: 0.05),
-                  ),
-                ),
-                child: TextField(
-                  key: const Key('note_title_field'),
-                  controller: _titleController,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textDark,
-                  ),
-                  decoration: const InputDecoration(
-                    hintText: 'Note Title (e.g. Chapter 4 Key Concepts)',
-                    hintStyle: TextStyle(
-                      color: AppColors.textLight,
-                      fontSize: 15,
-                      fontWeight: FontWeight.normal,
-                    ),
-                    border: InputBorder.none,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
 
-              // Subject Field Container
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: Colors.black.withValues(alpha: 0.05),
+            const SizedBox(height: 16),
+
+            // ── Fields ────────────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                children: [
+                  // Title
+                  _EditorField(
+                    controller: _titleController,
+                    testKey: const Key('note_title_field'),
+                    hintText: 'Note title…',
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: _kNHead,
                   ),
-                ),
-                child: TextField(
-                  key: const Key('note_subject_field'),
-                  controller: _subjectController,
-                  style: const TextStyle(
-                    fontSize: 15,
+                  const SizedBox(height: 10),
+                  // Subject
+                  _EditorField(
+                    controller: _subjectController,
+                    testKey: const Key('note_subject_field'),
+                    hintText: 'Subject (e.g. Mathematics)',
+                    prefixIcon: Icons.label_outline_rounded,
+                    color: _kNPrimary,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.primary,
                   ),
-                  decoration: const InputDecoration(
-                    prefixIcon: Icon(
-                      Icons.label_outline_rounded,
-                      color: AppColors.primary,
-                      size: 20,
-                    ),
-                    prefixIconConstraints: BoxConstraints(
-                      minWidth: 28,
-                      minHeight: 28,
-                    ),
-                    hintText: 'Subject (e.g. Mathematics, Physics)',
-                    hintStyle: TextStyle(
-                      color: AppColors.textLight,
-                      fontSize: 14,
-                      fontWeight: FontWeight.normal,
-                    ),
-                    border: InputBorder.none,
-                  ),
-                ),
+                ],
               ),
-              const SizedBox(height: 12),
+            ),
 
-              // Detailed Notes Content Area
-              Expanded(
+            const SizedBox(height: 10),
+
+            // ── Content area ──────────────────────────────────────────────
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                 child: Container(
-                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: Colors.black.withValues(alpha: 0.05),
-                    ),
+                    color: _kNCard,
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
                   child: TextField(
                     key: const Key('note_content_field'),
@@ -780,23 +786,286 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                     textAlignVertical: TextAlignVertical.top,
                     style: const TextStyle(
                       fontSize: 15,
-                      height: 1.5,
-                      color: AppColors.textDark,
+                      height: 1.6,
+                      color: _kNHead,
                     ),
                     decoration: const InputDecoration(
+                      contentPadding: EdgeInsets.all(16),
                       hintText:
-                          'Write your detailed notes, lecture summaries, key equations, or revision points here...',
-                      hintStyle: TextStyle(
-                        color: AppColors.textLight,
-                        fontSize: 14,
-                      ),
+                          'Write your notes, key equations, or revision points here…',
+                      hintStyle: TextStyle(color: _kNBody, fontSize: 14),
                       border: InputBorder.none,
                     ),
                   ),
                 ),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── _NoteCard ────────────────────────────────────────────────────────────────
+
+class _NoteCard extends StatelessWidget {
+  final NoteItem note;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+
+  const _NoteCard({
+    required this.note,
+    required this.onTap,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final rawContent = (note.content as dynamic)?.toString() ?? '';
+    final cleanContent = rawContent.replaceAll('\n', ' ').trim();
+    final snippet = cleanContent.isNotEmpty
+        ? cleanContent
+        : 'No additional text';
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Ink(
+          decoration: BoxDecoration(
+            color: _kNCard,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: const Color(0xFFE5E7EB),
+              width: 1.0,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
             ],
           ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 13, 14, 11),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Note Title
+                Text(
+                  note.title.isNotEmpty ? note.title : 'Untitled Note',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: _kNHead,
+                    letterSpacing: -0.25,
+                    height: 1.25,
+                  ),
+                ),
+                const SizedBox(height: 5),
+
+                // Subject below title
+                Row(
+                  children: [
+                    Flexible(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: _kNPrimary.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          note.subject.isNotEmpty ? note.subject : 'General',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: _kNPrimary,
+                            letterSpacing: -0.1,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+
+                // Note content preview
+                Expanded(
+                  child: Text(
+                    snippet,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: _kNBody.withValues(alpha: 0.9),
+                      fontSize: 12.5,
+                      height: 1.35,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 6),
+
+                // Subtle date & minimal delete action
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        note.date.isNotEmpty ? note.date : 'Today',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF9CA3AF),
+                          letterSpacing: -0.1,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(
+                        Icons.delete_outline_rounded,
+                        size: 16,
+                        color: Color(0xFF9CA3AF),
+                      ),
+                      onPressed: onDelete,
+                      splashRadius: 16,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 20,
+                        minHeight: 20,
+                      ),
+                      tooltip: 'Delete note',
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── _DialogField ─────────────────────────────────────────────────────────────
+// Reusable field used inside the "New Note" dialog.
+
+class _DialogField extends StatelessWidget {
+  final TextEditingController controller;
+  final String hintText;
+  final Key? testKey;
+  final IconData? prefixIcon;
+  final bool autofocus;
+  final FontWeight fontWeight;
+
+  const _DialogField({
+    required this.controller,
+    required this.hintText,
+    this.testKey,
+    this.prefixIcon,
+    this.autofocus = false,
+    this.fontWeight = FontWeight.w400,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F6FF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _kNSep),
+      ),
+      child: TextField(
+        key: testKey,
+        controller: controller,
+        autofocus: autofocus,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: fontWeight,
+          color: _kNHead,
+        ),
+        decoration: InputDecoration(
+          hintText: hintText,
+          hintStyle: const TextStyle(color: _kNBody, fontSize: 14),
+          prefixIcon: prefixIcon != null
+              ? Icon(prefixIcon, color: _kNPrimary, size: 18)
+              : null,
+          prefixIconConstraints:
+              const BoxConstraints(minWidth: 36, minHeight: 36),
+          border: InputBorder.none,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── _EditorField ─────────────────────────────────────────────────────────────
+// Reusable field used in the note editor (title / subject rows).
+
+class _EditorField extends StatelessWidget {
+  final TextEditingController controller;
+  final String hintText;
+  final Key? testKey;
+  final IconData? prefixIcon;
+  final double fontSize;
+  final FontWeight fontWeight;
+  final Color color;
+
+  const _EditorField({
+    required this.controller,
+    required this.hintText,
+    this.testKey,
+    this.prefixIcon,
+    this.fontSize = 15,
+    this.fontWeight = FontWeight.w400,
+    this.color = _kNHead,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: _kNCard,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: TextField(
+        key: testKey,
+        controller: controller,
+        style: TextStyle(
+          fontSize: fontSize,
+          fontWeight: fontWeight,
+          color: color,
+        ),
+        decoration: InputDecoration(
+          hintText: hintText,
+          hintStyle: const TextStyle(color: _kNBody, fontSize: 14),
+          prefixIcon: prefixIcon != null
+              ? Icon(prefixIcon, color: _kNPrimary, size: 18)
+              : null,
+          prefixIconConstraints:
+              const BoxConstraints(minWidth: 44, minHeight: 44),
+          border: InputBorder.none,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
         ),
       ),
     );
