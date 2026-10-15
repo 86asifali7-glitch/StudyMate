@@ -391,6 +391,7 @@ class _NotesScreenState extends State<NotesScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: const Text('My Notes'),
         elevation: 0,
         actions: [

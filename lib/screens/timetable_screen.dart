@@ -502,6 +502,7 @@ class _TimetableScreenState extends State<TimetableScreen>
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: const Text('Weekly Timetable'),
         elevation: 0,
         actions: [

@@ -85,6 +85,7 @@ class _TasksScreenState extends State<TasksScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: const Text('Study Tasks'),
         elevation: 0,
       ),

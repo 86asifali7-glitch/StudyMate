@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../app/routes.dart';
 import '../core/colors.dart';
 
 // ─── Color palette extensions for the home screen ────────────────────────────
@@ -12,7 +11,12 @@ const _kAmber = Color(0xFFF59E0B);
 // ─── Screen ──────────────────────────────────────────────────────────────────
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  /// Called when the user taps a quick-access card or stat card.
+  /// [tabIndex] corresponds to the MainShell IndexedStack position:
+  ///   1 = Notes, 2 = Tasks, 3 = Timetable.
+  final void Function(int tabIndex)? onNavigate;
+
+  const HomeScreen({super.key, this.onNavigate});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -20,47 +24,32 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
-  int _selectedNavIndex = 0;
   late AnimationController _bannerAnimCtrl;
   late Animation<double> _bannerFade;
 
-  // Quick‑access section data
+  // Quick‑access section data (tabIndex matches MainShell's IndexedStack order)
   static const _quickItems = [
     _QuickItem(
       title: 'Notes',
       subtitle: 'Lecture & study notes',
       icon: Icons.menu_book_rounded,
       color: _kBlue,
-      route: AppRoutes.notes,
+      tabIndex: 1,
     ),
     _QuickItem(
       title: 'Tasks',
       subtitle: 'Assignments & to‑dos',
       icon: Icons.check_circle_outline_rounded,
       color: _kGreen,
-      route: AppRoutes.tasks,
+      tabIndex: 2,
     ),
     _QuickItem(
       title: 'Timetable',
       subtitle: 'Weekly class schedule',
       icon: Icons.calendar_month_rounded,
       color: _kAmber,
-      route: AppRoutes.timetable,
+      tabIndex: 3,
     ),
-  ];
-
-  static const _navDestinations = [
-    _NavDest(label: 'Home', icon: Icons.home_rounded),
-    _NavDest(label: 'Notes', icon: Icons.menu_book_rounded),
-    _NavDest(label: 'Tasks', icon: Icons.check_circle_outline_rounded),
-    _NavDest(label: 'Timetable', icon: Icons.calendar_month_rounded),
-  ];
-
-  static const _navRoutes = [
-    AppRoutes.home,
-    AppRoutes.notes,
-    AppRoutes.tasks,
-    AppRoutes.timetable,
   ];
 
   @override
@@ -90,12 +79,8 @@ class _HomeScreenState extends State<HomeScreen>
     return 'Good evening';
   }
 
-  void _onNavTap(int index) {
-    if (index == 0) {
-      setState(() => _selectedNavIndex = 0);
-      return;
-    }
-    Navigator.pushNamed(context, _navRoutes[index]);
+  void _navigateTo(int tabIndex) {
+    widget.onNavigate?.call(tabIndex);
   }
 
   @override
@@ -167,8 +152,6 @@ class _HomeScreenState extends State<HomeScreen>
         ),
       ),
 
-      // ── Bottom Navigation Bar ─────────────────────────────────────────────
-      bottomNavigationBar: _buildBottomNav(),
     );
   }
 
@@ -379,7 +362,7 @@ class _HomeScreenState extends State<HomeScreen>
             count: '12',
             icon: Icons.menu_book_rounded,
             color: _kBlue,
-            onTap: () => Navigator.pushNamed(context, AppRoutes.notes),
+            onTap: () => _navigateTo(1),
           ),
         ),
         const SizedBox(width: 10),
@@ -389,7 +372,7 @@ class _HomeScreenState extends State<HomeScreen>
             count: '4',
             icon: Icons.assignment_outlined,
             color: _kAmber,
-            onTap: () => Navigator.pushNamed(context, AppRoutes.tasks),
+            onTap: () => _navigateTo(2),
           ),
         ),
         const SizedBox(width: 10),
@@ -399,7 +382,7 @@ class _HomeScreenState extends State<HomeScreen>
             count: '3',
             icon: Icons.schedule_rounded,
             color: _kGreen,
-            onTap: () => Navigator.pushNamed(context, AppRoutes.timetable),
+            onTap: () => _navigateTo(3),
           ),
         ),
       ],
@@ -489,7 +472,7 @@ class _HomeScreenState extends State<HomeScreen>
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () => Navigator.pushNamed(context, item.route),
+          onTap: () => _navigateTo(item.tabIndex),
           child: Ink(
             decoration: BoxDecoration(
               color: AppColors.surface,
@@ -568,40 +551,6 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  // ── Bottom Nav ────────────────────────────────────────────────────────────
-
-  Widget _buildBottomNav() {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.07),
-            blurRadius: 16,
-            offset: const Offset(0, -4),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: List.generate(
-              _navDestinations.length,
-              (i) => _NavBarItem(
-                dest: _navDestinations[i],
-                isSelected: _selectedNavIndex == i,
-                onTap: () => _onNavTap(i),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   // ── Helper ────────────────────────────────────────────────────────────────
 
   Widget _sectionHeader(String title) {
@@ -624,21 +573,15 @@ class _QuickItem {
   final String subtitle;
   final IconData icon;
   final Color color;
-  final String route;
+  final int tabIndex;
 
   const _QuickItem({
     required this.title,
     required this.subtitle,
     required this.icon,
     required this.color,
-    required this.route,
+    required this.tabIndex,
   });
-}
-
-class _NavDest {
-  final String label;
-  final IconData icon;
-  const _NavDest({required this.label, required this.icon});
 }
 
 // ─── Stat Card ───────────────────────────────────────────────────────────────
@@ -721,57 +664,3 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-// ─── Bottom Nav Item ──────────────────────────────────────────────────────────
-
-class _NavBarItem extends StatelessWidget {
-  final _NavDest dest;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _NavBarItem({
-    required this.dest,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeInOut,
-        padding: isSelected
-            ? const EdgeInsets.symmetric(horizontal: 16, vertical: 8)
-            : const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? _kBlue.withValues(alpha: 0.10)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              dest.icon,
-              size: 20,
-              color: isSelected ? _kBlue : AppColors.textLight,
-            ),
-            if (isSelected) ...[
-              const SizedBox(width: 6),
-              Text(
-                dest.label,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: _kBlue,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
