@@ -1,21 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../core/colors.dart';
 
-// ─── Color palette extensions for the home screen ────────────────────────────
-const _kBlue = Color(0xFF4F6FFF);
-const _kPurple = Color(0xFF7C3AED);
-const _kGreen = Color(0xFF10B981);
-const _kAmber = Color(0xFFF59E0B);
+// ─── Design tokens ─────────────────────────────────────────────────────────────
+// Inspired by the reference screenshot's lavender + white card + purple-accent style.
 
-// ─── Screen ──────────────────────────────────────────────────────────────────
+const _kBg          = Color(0xFFEEF0FF); // soft lavender page background
+const _kPrimary     = Color(0xFF5B6CF9); // indigo-purple primary
+const _kPrimaryDark = Color(0xFF4152E8); // deeper indigo (gradient stop)
+const _kCard        = Color(0xFFFFFFFF); // white card surface
+const _kTextHead    = Color(0xFF1A1A2E); // near-black heading
+const _kTextBody    = Color(0xFF6B7280); // muted body text
+const _kPurpleTag   = Color(0xFF7C3AED); // purple pill badge
+const _kBlueTag     = Color(0xFF3B82F6); // blue pill badge
+const _kGreenTag    = Color(0xFF059669); // green pill badge
+
+// ─── Screen ────────────────────────────────────────────────────────────────────
 
 class HomeScreen extends StatefulWidget {
-  /// Called when the user taps a quick-access card or stat card.
-  /// [tabIndex] corresponds to the MainShell IndexedStack position:
-  ///   1 = Notes, 2 = Tasks, 3 = Timetable.
+  /// [tabIndex] → MainShell IndexedStack position: 1=Notes 2=Tasks 3=Timetable
   final void Function(int tabIndex)? onNavigate;
-
   const HomeScreen({super.key, this.onNavigate});
 
   @override
@@ -24,580 +27,478 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
-  late AnimationController _bannerAnimCtrl;
-  late Animation<double> _bannerFade;
-
-  // Quick‑access section data (tabIndex matches MainShell's IndexedStack order)
-  static const _quickItems = [
-    _QuickItem(
-      title: 'Notes',
-      subtitle: 'Lecture & study notes',
-      icon: Icons.menu_book_rounded,
-      color: _kBlue,
-      tabIndex: 1,
-    ),
-    _QuickItem(
-      title: 'Tasks',
-      subtitle: 'Assignments & to‑dos',
-      icon: Icons.check_circle_outline_rounded,
-      color: _kGreen,
-      tabIndex: 2,
-    ),
-    _QuickItem(
-      title: 'Timetable',
-      subtitle: 'Weekly class schedule',
-      icon: Icons.calendar_month_rounded,
-      color: _kAmber,
-      tabIndex: 3,
-    ),
-  ];
+  late AnimationController _fadeCtrl;
+  late Animation<double>   _fadeAnim;
 
   @override
   void initState() {
     super.initState();
-    _bannerAnimCtrl = AnimationController(
+    _fadeCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 700),
+      duration: const Duration(milliseconds: 480),
     );
-    _bannerFade = CurvedAnimation(
-      parent: _bannerAnimCtrl,
-      curve: Curves.easeOut,
-    );
-    _bannerAnimCtrl.forward();
+    _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
+    _fadeCtrl.forward();
   }
 
   @override
   void dispose() {
-    _bannerAnimCtrl.dispose();
+    _fadeCtrl.dispose();
     super.dispose();
   }
 
   String get _greeting {
-    final hour = DateTime.now().hour;
-    if (hour < 12) return 'Good morning';
-    if (hour < 17) return 'Good afternoon';
-    return 'Good evening';
+    final h = DateTime.now().hour;
+    if (h < 12) return 'Good morning!';
+    if (h < 17) return 'Good afternoon!';
+    return 'Good evening!';
   }
 
-  void _navigateTo(int tabIndex) {
-    widget.onNavigate?.call(tabIndex);
+  String get _dateLabel {
+    final now = DateTime.now();
+    const months = [
+      'Jan','Feb','Mar','Apr','May','Jun',
+      'Jul','Aug','Sep','Oct','Nov','Dec',
+    ];
+    const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    return '${days[now.weekday - 1]}, ${months[now.month - 1]} ${now.day}';
   }
+
+  void _go(int i) => widget.onNavigate?.call(i);
 
   @override
   Widget build(BuildContext context) {
-    // Make the status bar icons dark (suits the light header)
-    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.dark.copyWith(
-      statusBarColor: Colors.transparent,
-    ));
-
+    SystemChrome.setSystemUIOverlayStyle(
+      SystemUiOverlayStyle.dark.copyWith(statusBarColor: Colors.transparent),
+    );
     return Scaffold(
-      backgroundColor: AppColors.background,
-      // ── No AppBar — custom header inside body ──
+      backgroundColor: _kBg,
       body: SafeArea(
-        child: CustomScrollView(
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            // ── Top bar ──────────────────────────────────────────────────
-            SliverToBoxAdapter(child: _buildTopBar()),
-
-            // ── Greeting ─────────────────────────────────────────────────
-            SliverToBoxAdapter(child: _buildGreeting()),
-
-            // ── Banner ───────────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-                child: FadeTransition(
-                  opacity: _bannerFade,
-                  child: _buildBanner(),
-                ),
-              ),
-            ),
-
-            // ── Stat cards ───────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                child: _buildStatRow(),
-              ),
-            ),
-
-            // ── Daily Focus ──────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                child: _buildDailyFocus(),
-              ),
-            ),
-
-            // ── Quick Access header ───────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
-                child: _sectionHeader('Quick Access'),
-              ),
-            ),
-
-            // ── Quick Access cards ────────────────────────────────────────
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, i) => _buildQuickCard(_quickItems[i]),
-                  childCount: _quickItems.length,
-                ),
-              ),
-            ),
-          ],
+        bottom: false,
+        child: FadeTransition(
+          opacity: _fadeAnim,
+          child: CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              SliverToBoxAdapter(child: _buildTopBar()),
+              SliverToBoxAdapter(child: _buildHero()),
+              SliverToBoxAdapter(child: _buildStatsRow()),
+              SliverToBoxAdapter(child: _buildSectionLabel('Quick Access')),
+              SliverToBoxAdapter(child: _buildQuickCard(
+                icon: Icons.menu_book_rounded,
+                iconBg: _kPurpleTag,
+                title: 'Notes',
+                subtitle: 'Lecture & study notes',
+                badge: 'Notes',
+                badgeColor: _kPurpleTag,
+                count: '12',
+                onTap: () => _go(1),
+              )),
+              SliverToBoxAdapter(child: _buildQuickCard(
+                icon: Icons.check_circle_outline_rounded,
+                iconBg: _kBlueTag,
+                title: 'Tasks',
+                subtitle: 'Assignments & to-dos',
+                badge: 'Tasks',
+                badgeColor: _kBlueTag,
+                count: '4',
+                onTap: () => _go(2),
+              )),
+              SliverToBoxAdapter(child: _buildQuickCard(
+                icon: Icons.calendar_month_rounded,
+                iconBg: _kGreenTag,
+                title: 'Timetable',
+                subtitle: 'Weekly class schedule',
+                badge: 'Timetable',
+                badgeColor: _kGreenTag,
+                count: '3',
+                isLast: true,
+                onTap: () => _go(3),
+              )),
+              const SliverToBoxAdapter(child: SizedBox(height: 36)),
+            ],
+          ),
         ),
       ),
-
     );
   }
 
-  // ── Top Bar ──────────────────────────────────────────────────────────────
+  // ── Top bar ──────────────────────────────────────────────────────────────────
 
   Widget _buildTopBar() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 14, 16, 6),
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
       child: Row(
         children: [
-          // Logo
+          // Gradient circle avatar / logo
           Container(
-            padding: const EdgeInsets.all(7),
-            decoration: BoxDecoration(
-              color: _kBlue.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(
-              Icons.auto_stories_rounded,
-              color: _kBlue,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 10),
-          const Text(
-            'StudyMate',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              color: AppColors.textDark,
-              letterSpacing: 0.2,
-            ),
-          ),
-          const Spacer(),
-          // Notification bell
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: () {},
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.notifications_none_rounded,
-                  size: 20,
-                  color: AppColors.textDark,
-                ),
+            width: 40,
+            height: 40,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                colors: [_kPrimary, _kPrimaryDark],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
             ),
+            child: const Icon(Icons.auto_stories_rounded,
+                color: Colors.white, size: 20),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'StudyMate',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: _kTextHead,
+                  letterSpacing: -0.2,
+                ),
+              ),
+              Text(
+                _dateLabel,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: _kTextBody,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ],
+          ),
+          const Spacer(),
+          // Bell button
+          _TopBarBtn(
+            icon: Icons.notifications_none_rounded,
+            onTap: () {},
           ),
         ],
       ),
     );
   }
 
-  // ── Greeting ─────────────────────────────────────────────────────────────
+  // ── Hero section ─────────────────────────────────────────────────────────────
 
-  Widget _buildGreeting() {
+  Widget _buildHero() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 14),
+      padding: const EdgeInsets.fromLTRB(20, 22, 20, 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '$_greeting! 👋',
+            _greeting,
             style: const TextStyle(
               fontSize: 26,
               fontWeight: FontWeight.w800,
-              color: AppColors.textDark,
-              letterSpacing: -0.3,
+              color: _kTextHead,
+              letterSpacing: -0.4,
+              height: 1.15,
             ),
           ),
           const SizedBox(height: 4),
           const Text(
-            "Let's make today productive.",
+            'Your study space is ready.\nLet\'s make progress today.',
             style: TextStyle(
               fontSize: 14,
-              color: AppColors.textLight,
-              fontWeight: FontWeight.w500,
+              color: _kTextBody,
+              fontWeight: FontWeight.w400,
+              height: 1.55,
             ),
           ),
+          const SizedBox(height: 20),
+          // Hero card  ── gradient-outlined card with class info
+          _HeroCard(onViewTimetable: () => _go(3)),
         ],
       ),
     );
   }
 
-  // ── Banner ────────────────────────────────────────────────────────────────
+  // ── Stats row ────────────────────────────────────────────────────────────────
 
-  Widget _buildBanner() {
+  Widget _buildStatsRow() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 4),
+      child: Row(
+        children: [
+          _StatBadge(label: 'Notes',   value: '12', color: _kPurpleTag, onTap: () => _go(1)),
+          const SizedBox(width: 12),
+          _StatBadge(label: 'Tasks',   value: '4',  color: _kBlueTag,   onTap: () => _go(2)),
+          const SizedBox(width: 12),
+          _StatBadge(label: 'Classes', value: '3',  color: _kGreenTag,  onTap: () => _go(3)),
+        ],
+      ),
+    );
+  }
+
+  // ── Section label ────────────────────────────────────────────────────────────
+
+  Widget _buildSectionLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+          color: _kTextHead,
+          letterSpacing: -0.2,
+        ),
+      ),
+    );
+  }
+
+  // ── Quick Access card ────────────────────────────────────────────────────────
+
+  Widget _buildQuickCard({
+    required IconData icon,
+    required Color iconBg,
+    required String title,
+    required String subtitle,
+    required String badge,
+    required Color badgeColor,
+    required String count,
+    required VoidCallback onTap,
+    bool isLast = false,
+  }) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 0, 20, isLast ? 0 : 12),
+      child: _QuickCard(
+        icon: icon,
+        iconBg: iconBg,
+        title: title,
+        subtitle: subtitle,
+        badge: badge,
+        badgeColor: badgeColor,
+        count: count,
+        onTap: onTap,
+      ),
+    );
+  }
+}
+
+// ─── Top bar button ───────────────────────────────────────────────────────────
+
+class _TopBarBtn extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const _TopBarBtn({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: _kCard,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.07),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Icon(icon, size: 20, color: _kTextHead),
+      ),
+    );
+  }
+}
+
+// ─── Hero Card ────────────────────────────────────────────────────────────────
+
+class _HeroCard extends StatelessWidget {
+  final VoidCallback onViewTimetable;
+  const _HeroCard({required this.onViewTimetable});
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      height: 130,
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [_kBlue, _kPurple],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
+          colors: [Color(0xFF6C63FF), Color(0xFF4F9FFF)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: _kBlue.withValues(alpha: 0.30),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
+            color: const Color(0xFF6C63FF).withValues(alpha: 0.35),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Stack(
-          children: [
-            // Decorative circles
-            Positioned(
-              right: -16,
-              top: -22,
-              child: _circle(100, Colors.white.withValues(alpha: 0.08)),
-            ),
-            Positioned(
-              right: 60,
-              bottom: -28,
-              child: _circle(80, Colors.white.withValues(alpha: 0.06)),
-            ),
-            Positioned(
-              left: -20,
-              bottom: -30,
-              child: _circle(90, Colors.white.withValues(alpha: 0.05)),
-            ),
-            // Content
-            Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-              child: Row(
-                children: [
-                  // Left text
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text(
-                          'Your Study Space',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            letterSpacing: 0.1,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        const Text(
-                          'Stay focused.\nProgress daily. 🎯',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.white70,
-                            height: 1.45,
-                          ),
-                        ),
-                      ],
-                    ),
+      padding: const EdgeInsets.all(20),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.22),
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                  // Right icon badge
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.18),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.school_rounded,
+                  child: const Text(
+                    "Today's Class",
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
                       color: Colors.white,
-                      size: 28,
+                      letterSpacing: 0.3,
                     ),
                   ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _circle(double size, Color color) => Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-      );
-
-  // ── Stat Row ──────────────────────────────────────────────────────────────
-
-  Widget _buildStatRow() {
-    return Row(
-      children: [
-        Expanded(
-          child: _StatCard(
-            label: 'Notes',
-            count: '12',
-            icon: Icons.menu_book_rounded,
-            color: _kBlue,
-            onTap: () => _navigateTo(1),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _StatCard(
-            label: 'Tasks',
-            count: '4',
-            icon: Icons.assignment_outlined,
-            color: _kAmber,
-            onTap: () => _navigateTo(2),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _StatCard(
-            label: 'Classes',
-            count: '3',
-            icon: Icons.schedule_rounded,
-            color: _kGreen,
-            onTap: () => _navigateTo(3),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ── Daily Focus ───────────────────────────────────────────────────────────
-
-  Widget _buildDailyFocus() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _sectionHeader('Daily Focus'),
-        const SizedBox(height: 10),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              // Tag chip
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: _kBlue.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Text(
-                  'Today\'s Focus',
+                const SizedBox(height: 10),
+                const Text(
+                  'Calculus II',
                   style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: _kBlue,
-                    letterSpacing: 0.2,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    letterSpacing: -0.3,
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              // Focus label
-              Expanded(
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.bolt_rounded,
-                      size: 16,
-                      color: _kAmber,
+                const SizedBox(height: 4),
+                const Text(
+                  '09:00 AM • Room 204',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.white70,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                GestureDetector(
+                  onTap: onViewTimetable,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
                     ),
-                    const SizedBox(width: 4),
-                    const Expanded(
-                      child: Text(
-                        'Calculus II  •  09:00 AM',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textDark,
-                        ),
-                        overflow: TextOverflow.ellipsis,
+                    child: const Text(
+                      'View Schedule',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF6C63FF),
                       ),
                     ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ── Quick Access card ─────────────────────────────────────────────────────
-
-  Widget _buildQuickCard(_QuickItem item) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () => _navigateTo(item.tabIndex),
-          child: Ink(
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: Colors.black.withValues(alpha: 0.05),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
+                  ),
                 ),
               ],
             ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 16, vertical: 14),
-              child: Row(
-                children: [
-                  // Icon container
-                  Container(
-                    width: 46,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      color: item.color.withValues(alpha: 0.11),
-                      borderRadius: BorderRadius.circular(13),
-                    ),
-                    child: Icon(item.icon, color: item.color, size: 24),
-                  ),
-                  const SizedBox(width: 14),
-                  // Labels
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item.title,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textDark,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          item.subtitle,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textLight,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Arrow badge
-                  Container(
-                    width: 30,
-                    height: 30,
-                    decoration: BoxDecoration(
-                      color: item.color.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(9),
-                    ),
-                    child: Icon(
-                      Icons.arrow_forward_ios_rounded,
-                      size: 13,
-                      color: item.color,
-                    ),
-                  ),
-                ],
-              ),
+          ),
+          const SizedBox(width: 16),
+          // Right side decorative icon
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.18),
+              shape: BoxShape.circle,
             ),
+            child: const Icon(Icons.school_rounded,
+                color: Colors.white, size: 32),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Stat Badge ───────────────────────────────────────────────────────────────
+
+class _StatBadge extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+  final VoidCallback onTap;
+  const _StatBadge({
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: _kCard,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: color,
+                  height: 1,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: _kTextBody,
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
-
-  // ── Helper ────────────────────────────────────────────────────────────────
-
-  Widget _sectionHeader(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 17,
-        fontWeight: FontWeight.w800,
-        color: AppColors.textDark,
-        letterSpacing: 0.1,
-      ),
-    );
-  }
 }
 
-// ─── Small data classes / components ─────────────────────────────────────────
+// ─── Quick Card ───────────────────────────────────────────────────────────────
 
-class _QuickItem {
+class _QuickCard extends StatelessWidget {
+  final IconData icon;
+  final Color iconBg;
   final String title;
   final String subtitle;
-  final IconData icon;
-  final Color color;
-  final int tabIndex;
-
-  const _QuickItem({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.color,
-    required this.tabIndex,
-  });
-}
-
-// ─── Stat Card ───────────────────────────────────────────────────────────────
-
-class _StatCard extends StatelessWidget {
-  final String label;
+  final String badge;
+  final Color badgeColor;
   final String count;
-  final IconData icon;
-  final Color color;
   final VoidCallback onTap;
 
-  const _StatCard({
-    required this.label,
-    required this.count,
+  const _QuickCard({
     required this.icon,
-    required this.color,
+    required this.iconBg,
+    required this.title,
+    required this.subtitle,
+    required this.badge,
+    required this.badgeColor,
+    required this.count,
     required this.onTap,
   });
 
@@ -606,54 +507,83 @@ class _StatCard extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         onTap: onTap,
         child: Ink(
           decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
+            color: _kCard,
+            borderRadius: BorderRadius.circular(18),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 14,
+                offset: const Offset(0, 4),
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 4,
+                offset: const Offset(0, 1),
               ),
             ],
           ),
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
               children: [
+                // Left: icon in tinted circle
                 Container(
-                  padding: const EdgeInsets.all(7),
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(9),
+                    color: iconBg.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
                   ),
-                  child: Icon(icon, color: color, size: 16),
+                  child: Icon(icon, color: iconBg, size: 22),
                 ),
-                const SizedBox(height: 10),
-                Text(
-                  count,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.textDark,
-                    height: 1,
+                const SizedBox(width: 14),
+                // Middle: title + subtitle
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: _kTextHead,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: _kTextBody,
+                          fontWeight: FontWeight.w400,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.textLight,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                const SizedBox(width: 10),
+                // Right: pill badge + count
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    _PillBadge(label: badge, color: badgeColor),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$count items',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: _kTextBody,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -664,3 +594,30 @@ class _StatCard extends StatelessWidget {
   }
 }
 
+// ─── Pill Badge ───────────────────────────────────────────────────────────────
+
+class _PillBadge extends StatelessWidget {
+  final String label;
+  final Color color;
+  const _PillBadge({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: color,
+          letterSpacing: 0.1,
+        ),
+      ),
+    );
+  }
+}
