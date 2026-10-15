@@ -29,13 +29,6 @@ class HomeScreen extends StatelessWidget {
         'color': const Color(0xFFF59E0B),
         'route': AppRoutes.timetable,
       },
-      {
-        'title': 'Profile',
-        'subtitle': 'Student details & settings',
-        'icon': Icons.person_rounded,
-        'color': const Color(0xFF8B5CF6),
-        'route': AppRoutes.profile,
-      },
     ];
 
     return Scaffold(
@@ -57,34 +50,6 @@ class HomeScreen extends StatelessWidget {
           ],
         ),
         elevation: 0,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 6.0),
-            child: IconButton(
-              tooltip: 'Profile',
-              icon: Container(
-                padding: const EdgeInsets.all(2),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.8),
-                    width: 1.5,
-                  ),
-                ),
-                child: const CircleAvatar(
-                  radius: 13,
-                  backgroundColor: Colors.white,
-                  child: Icon(
-                    Icons.person_rounded,
-                    size: 17,
-                    color: AppColors.primary,
-                  ),
-                ),
-              ),
-              onPressed: () => Navigator.pushNamed(context, AppRoutes.profile),
-            ),
-          ),
-        ],
       ),
       body: SafeArea(
         child: ListView(
