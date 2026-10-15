@@ -1,195 +1,356 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../app/routes.dart';
 import '../core/colors.dart';
 
-class HomeScreen extends StatelessWidget {
+// ─── Color palette extensions for the home screen ────────────────────────────
+const _kBlue = Color(0xFF4F6FFF);
+const _kPurple = Color(0xFF7C3AED);
+const _kGreen = Color(0xFF10B981);
+const _kAmber = Color(0xFFF59E0B);
+
+// ─── Screen ──────────────────────────────────────────────────────────────────
+
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
+  int _selectedNavIndex = 0;
+  late AnimationController _bannerAnimCtrl;
+  late Animation<double> _bannerFade;
+
+  // Quick‑access section data
+  static const _quickItems = [
+    _QuickItem(
+      title: 'Notes',
+      subtitle: 'Lecture & study notes',
+      icon: Icons.menu_book_rounded,
+      color: _kBlue,
+      route: AppRoutes.notes,
+    ),
+    _QuickItem(
+      title: 'Tasks',
+      subtitle: 'Assignments & to‑dos',
+      icon: Icons.check_circle_outline_rounded,
+      color: _kGreen,
+      route: AppRoutes.tasks,
+    ),
+    _QuickItem(
+      title: 'Timetable',
+      subtitle: 'Weekly class schedule',
+      icon: Icons.calendar_month_rounded,
+      color: _kAmber,
+      route: AppRoutes.timetable,
+    ),
+  ];
+
+  static const _navDestinations = [
+    _NavDest(label: 'Home', icon: Icons.home_rounded),
+    _NavDest(label: 'Notes', icon: Icons.menu_book_rounded),
+    _NavDest(label: 'Tasks', icon: Icons.check_circle_outline_rounded),
+    _NavDest(label: 'Timetable', icon: Icons.calendar_month_rounded),
+  ];
+
+  static const _navRoutes = [
+    AppRoutes.home,
+    AppRoutes.notes,
+    AppRoutes.tasks,
+    AppRoutes.timetable,
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _bannerAnimCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
+    _bannerFade = CurvedAnimation(
+      parent: _bannerAnimCtrl,
+      curve: Curves.easeOut,
+    );
+    _bannerAnimCtrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _bannerAnimCtrl.dispose();
+    super.dispose();
+  }
+
+  String get _greeting {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  }
+
+  void _onNavTap(int index) {
+    if (index == 0) {
+      setState(() => _selectedNavIndex = 0);
+      return;
+    }
+    Navigator.pushNamed(context, _navRoutes[index]);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final navItems = [
-      {
-        'title': 'Notes',
-        'subtitle': 'Manage lecture & study notes',
-        'icon': Icons.menu_book_rounded,
-        'color': const Color(0xFF4F6FFF),
-        'route': AppRoutes.notes,
-      },
-      {
-        'title': 'Tasks',
-        'subtitle': 'Track assignments & to-dos',
-        'icon': Icons.check_circle_outline_rounded,
-        'color': const Color(0xFF10B981),
-        'route': AppRoutes.tasks,
-      },
-      {
-        'title': 'Timetable',
-        'subtitle': 'View weekly class schedule',
-        'icon': Icons.calendar_month_rounded,
-        'color': const Color(0xFFF59E0B),
-        'route': AppRoutes.timetable,
-      },
-    ];
+    // Make the status bar icons dark (suits the light header)
+    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.dark.copyWith(
+      statusBarColor: Colors.transparent,
+    ));
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.auto_stories_rounded, size: 22),
-            SizedBox(width: 8),
-            Text(
-              'StudyMate',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 20,
-                letterSpacing: 0.3,
+      // ── No AppBar — custom header inside body ──
+      body: SafeArea(
+        child: CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            // ── Top bar ──────────────────────────────────────────────────
+            SliverToBoxAdapter(child: _buildTopBar()),
+
+            // ── Greeting ─────────────────────────────────────────────────
+            SliverToBoxAdapter(child: _buildGreeting()),
+
+            // ── Banner ───────────────────────────────────────────────────
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                child: FadeTransition(
+                  opacity: _bannerFade,
+                  child: _buildBanner(),
+                ),
+              ),
+            ),
+
+            // ── Stat cards ───────────────────────────────────────────────
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: _buildStatRow(),
+              ),
+            ),
+
+            // ── Daily Focus ──────────────────────────────────────────────
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: _buildDailyFocus(),
+              ),
+            ),
+
+            // ── Quick Access header ───────────────────────────────────────
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+                child: _sectionHeader('Quick Access'),
+              ),
+            ),
+
+            // ── Quick Access cards ────────────────────────────────────────
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, i) => _buildQuickCard(_quickItems[i]),
+                  childCount: _quickItems.length,
+                ),
               ),
             ),
           ],
         ),
-        elevation: 0,
       ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-          children: [
-            // Welcome Section
-            _buildWelcomeCard(),
-            const SizedBox(height: 14),
 
-            // Summary Cards Section
-            _buildSummaryCards(context),
-            const SizedBox(height: 18),
+      // ── Bottom Navigation Bar ─────────────────────────────────────────────
+      bottomNavigationBar: _buildBottomNav(),
+    );
+  }
 
-            // Quick Access Section Header
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Quick Access',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textDark,
-                    letterSpacing: 0.2,
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Text(
-                    'Shortcuts',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                ),
-              ],
+  // ── Top Bar ──────────────────────────────────────────────────────────────
+
+  Widget _buildTopBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 14, 16, 6),
+      child: Row(
+        children: [
+          // Logo
+          Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              color: _kBlue.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
             ),
-            const SizedBox(height: 10),
-
-            // Quick Access Cards
-            ...navItems.map((item) => _buildQuickAccessCard(context, item)),
-          ],
-        ),
+            child: const Icon(
+              Icons.auto_stories_rounded,
+              color: _kBlue,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 10),
+          const Text(
+            'StudyMate',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textDark,
+              letterSpacing: 0.2,
+            ),
+          ),
+          const Spacer(),
+          // Notification bell
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () {},
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.notifications_none_rounded,
+                  size: 20,
+                  color: AppColors.textDark,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  // Modern Welcome Card with Gradient and Subtle Decorative Elements
-  Widget _buildWelcomeCard() {
+  // ── Greeting ─────────────────────────────────────────────────────────────
+
+  Widget _buildGreeting() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$_greeting! 👋',
+            style: const TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textDark,
+              letterSpacing: -0.3,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            "Let's make today productive.",
+            style: TextStyle(
+              fontSize: 14,
+              color: AppColors.textLight,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Banner ────────────────────────────────────────────────────────────────
+
+  Widget _buildBanner() {
     return Container(
+      height: 130,
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF4F6FFF), Color(0xFF3858D6)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+          colors: [_kBlue, _kPurple],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
         ),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF4F6FFF).withValues(alpha: 0.25),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: _kBlue.withValues(alpha: 0.30),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         child: Stack(
           children: [
+            // Decorative circles
             Positioned(
-              right: -20,
-              top: -20,
-              child: Container(
-                width: 90,
-                height: 90,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withValues(alpha: 0.1),
-                ),
-              ),
+              right: -16,
+              top: -22,
+              child: _circle(100, Colors.white.withValues(alpha: 0.08)),
             ),
             Positioned(
-              right: 35,
-              bottom: -25,
-              child: Container(
-                width: 65,
-                height: 65,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withValues(alpha: 0.08),
-                ),
-              ),
+              right: 60,
+              bottom: -28,
+              child: _circle(80, Colors.white.withValues(alpha: 0.06)),
             ),
+            Positioned(
+              left: -20,
+              bottom: -30,
+              child: _circle(90, Colors.white.withValues(alpha: 0.05)),
+            ),
+            // Content
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
               child: Row(
                 children: [
-                  const Expanded(
+                  // Left text
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(
-                          'Welcome back! 👋',
+                        const Text(
+                          'Your Study Space',
                           style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
                             color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.2,
+                            letterSpacing: 0.1,
                           ),
                         ),
-                        SizedBox(height: 4),
-                        Text(
-                          'Ready to organize your study day?',
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Stay focused.\nProgress daily. 🎯',
                           style: TextStyle(
-                            color: Colors.white70,
                             fontSize: 13,
+                            color: Colors.white70,
+                            height: 1.45,
                           ),
                         ),
                       ],
                     ),
                   ),
+                  // Right icon badge
                   Container(
-                    padding: const EdgeInsets.all(9),
+                    width: 56,
+                    height: 56,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(12),
+                      color: Colors.white.withValues(alpha: 0.18),
+                      shape: BoxShape.circle,
                     ),
                     child: const Icon(
                       Icons.school_rounded,
                       color: Colors.white,
-                      size: 24,
+                      size: 28,
                     ),
                   ),
                 ],
@@ -201,36 +362,43 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // Summary Cards for Total Notes, Pending Tasks, and Today's Classes
-  Widget _buildSummaryCards(BuildContext context) {
+  Widget _circle(double size, Color color) => Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+      );
+
+  // ── Stat Row ──────────────────────────────────────────────────────────────
+
+  Widget _buildStatRow() {
     return Row(
       children: [
         Expanded(
-          child: _buildSummaryCardItem(
-            label: 'Total Notes',
+          child: _StatCard(
+            label: 'Notes',
             count: '12',
             icon: Icons.menu_book_rounded,
-            color: const Color(0xFF4F6FFF),
+            color: _kBlue,
             onTap: () => Navigator.pushNamed(context, AppRoutes.notes),
           ),
         ),
         const SizedBox(width: 10),
         Expanded(
-          child: _buildSummaryCardItem(
-            label: 'Pending Tasks',
+          child: _StatCard(
+            label: 'Tasks',
             count: '4',
             icon: Icons.assignment_outlined,
-            color: const Color(0xFFF59E0B),
+            color: _kAmber,
             onTap: () => Navigator.pushNamed(context, AppRoutes.tasks),
           ),
         ),
         const SizedBox(width: 10),
         Expanded(
-          child: _buildSummaryCardItem(
-            label: "Today's Classes",
+          child: _StatCard(
+            label: 'Classes',
             count: '3',
             icon: Icons.schedule_rounded,
-            color: const Color(0xFF10B981),
+            color: _kGreen,
             onTap: () => Navigator.pushNamed(context, AppRoutes.timetable),
           ),
         ),
@@ -238,161 +406,370 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSummaryCardItem({
-    required String label,
-    required String count,
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+  // ── Daily Focus ───────────────────────────────────────────────────────────
+
+  Widget _buildDailyFocus() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionHeader('Daily Focus'),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
           decoration: BoxDecoration(
             color: AppColors.surface,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: Colors.black.withValues(alpha: 0.05),
-              width: 1,
-            ),
+            border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                blurRadius: 6,
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
             ],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
             children: [
+              // Tag chip
               Container(
-                padding: const EdgeInsets.all(6),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
+                  color: _kBlue.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                child: Icon(icon, color: color, size: 16),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                count,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textDark,
+                child: const Text(
+                  'Today\'s Focus',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: _kBlue,
+                    letterSpacing: 0.2,
+                  ),
                 ),
               ),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.textLight,
+              const SizedBox(width: 12),
+              // Focus label
+              Expanded(
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.bolt_rounded,
+                      size: 16,
+                      color: _kAmber,
+                    ),
+                    const SizedBox(width: 4),
+                    const Expanded(
+                      child: Text(
+                        'Calculus II  •  09:00 AM',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textDark,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Quick Access card ─────────────────────────────────────────────────────
+
+  Widget _buildQuickCard(_QuickItem item) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => Navigator.pushNamed(context, item.route),
+          child: Ink(
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Colors.black.withValues(alpha: 0.05),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 16, vertical: 14),
+              child: Row(
+                children: [
+                  // Icon container
+                  Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: item.color.withValues(alpha: 0.11),
+                      borderRadius: BorderRadius.circular(13),
+                    ),
+                    child: Icon(item.icon, color: item.color, size: 24),
+                  ),
+                  const SizedBox(width: 14),
+                  // Labels
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.title,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textDark,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          item.subtitle,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textLight,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Arrow badge
+                  Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: item.color.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                    child: Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 13,
+                      color: item.color,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
     );
   }
 
-  // Quick Access Card
-  Widget _buildQuickAccessCard(BuildContext context, Map<String, dynamic> item) {
-    final color = item['color'] as Color;
+  // ── Bottom Nav ────────────────────────────────────────────────────────────
 
+  Widget _buildBottomNav() {
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: Colors.black.withValues(alpha: 0.05),
-          width: 1,
-        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.07),
+            blurRadius: 16,
+            offset: const Offset(0, -4),
           ),
         ],
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: () {
-            Navigator.pushNamed(context, item['route'] as String);
-          },
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: List.generate(
+              _navDestinations.length,
+              (i) => _NavBarItem(
+                dest: _navDestinations[i],
+                isSelected: _selectedNavIndex == i,
+                onTap: () => _onNavTap(i),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Helper ────────────────────────────────────────────────────────────────
+
+  Widget _sectionHeader(String title) {
+    return Text(
+      title,
+      style: const TextStyle(
+        fontSize: 17,
+        fontWeight: FontWeight.w800,
+        color: AppColors.textDark,
+        letterSpacing: 0.1,
+      ),
+    );
+  }
+}
+
+// ─── Small data classes / components ─────────────────────────────────────────
+
+class _QuickItem {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color color;
+  final String route;
+
+  const _QuickItem({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.color,
+    required this.route,
+  });
+}
+
+class _NavDest {
+  final String label;
+  final IconData icon;
+  const _NavDest({required this.label, required this.icon});
+}
+
+// ─── Stat Card ───────────────────────────────────────────────────────────────
+
+class _StatCard extends StatelessWidget {
+  final String label;
+  final String count;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _StatCard({
+    required this.label,
+    required this.count,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Ink(
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            child: Row(
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Icon Box
                 Container(
-                  width: 40,
-                  height: 40,
+                  padding: const EdgeInsets.all(7),
                   decoration: BoxDecoration(
                     color: color.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(9),
                   ),
-                  child: Icon(
-                    item['icon'] as IconData,
-                    color: color,
-                    size: 22,
+                  child: Icon(icon, color: color, size: 16),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  count,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textDark,
+                    height: 1,
                   ),
                 ),
-                const SizedBox(width: 12),
-                // Titles
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item['title'] as String,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 15,
-                          color: AppColors.textDark,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        item['subtitle'] as String,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textLight,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                // Trailing Arrow
-                Container(
-                  width: 28,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    color: AppColors.background,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(
-                    Icons.arrow_forward_ios_rounded,
-                    size: 13,
+                const SizedBox(height: 3),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
                     color: AppColors.textLight,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Bottom Nav Item ──────────────────────────────────────────────────────────
+
+class _NavBarItem extends StatelessWidget {
+  final _NavDest dest;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _NavBarItem({
+    required this.dest,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeInOut,
+        padding: isSelected
+            ? const EdgeInsets.symmetric(horizontal: 16, vertical: 8)
+            : const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? _kBlue.withValues(alpha: 0.10)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              dest.icon,
+              size: 20,
+              color: isSelected ? _kBlue : AppColors.textLight,
+            ),
+            if (isSelected) ...[
+              const SizedBox(width: 6),
+              Text(
+                dest.label,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: _kBlue,
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );
