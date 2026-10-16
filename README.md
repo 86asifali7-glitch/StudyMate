@@ -18,8 +18,12 @@ StudyMate is a clean, modern, and student-focused mobile productivity applicatio
   - Quick task deletion with "Undo" snackbar action.
   - Floating Action Button (+) with quick due date preset chips (`Due Tomorrow`, `Due Friday`, `Due Sunday`, etc.).
   - Top action menu to mark all tasks completed, clear completed tasks, or reset sample data.
-  - SharedPreferences data persistence.
-- **Timetable Screen**: Weekly class timetable organized by day tabs (Monday to Friday).
+- **Timetable Screen**: Weekly class schedule manager featuring:
+  - Clean lavender-accented card UI matching the reference design.
+  - Day selector (`Mon`, `Tue`, `Wed`, `Thu`, `Fri`) with active purple indicator bar.
+  - Class cards displaying subject title, formatted schedule duration, lavender clock icon badge, inline edit pencil, and coral trash delete button.
+  - Interactive "Add Class" rounded lavender header button with subject name, day selection, and start/end time pickers.
+  - SharedPreferences data persistence and Undo deletion action.
 - **Profile Screen**: 
   - Circular avatar with cross-platform gallery image upload support (Flutter Web & Mobile).
   - Interactive profile editing for Name, Email, Class/Major, and Bio.
