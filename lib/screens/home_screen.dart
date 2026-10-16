@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 // Inspired by the reference screenshot's lavender + white card + purple-accent style.
@@ -29,16 +30,31 @@ class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _fadeCtrl;
   late Animation<double>   _fadeAnim;
+  int _noteCount = 3;
 
   @override
   void initState() {
     super.initState();
+    _loadNoteCount();
     _fadeCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 480),
     );
     _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
     _fadeCtrl.forward();
+  }
+
+  Future<void> _loadNoteCount() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedData = prefs.getStringList('studymate_saved_notes');
+      final count = savedData != null ? savedData.length : 3;
+      if (mounted && _noteCount != count) {
+        setState(() {
+          _noteCount = count;
+        });
+      }
+    } catch (_) {}
   }
 
   @override
@@ -64,10 +80,16 @@ class _HomeScreenState extends State<HomeScreen>
     return '${days[now.weekday - 1]}, ${months[now.month - 1]} ${now.day}';
   }
 
-  void _go(int i) => widget.onNavigate?.call(i);
+  void _go(int i) {
+    widget.onNavigate?.call(i);
+    _loadNoteCount();
+  }
 
   @override
   Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadNoteCount();
+    });
     SystemChrome.setSystemUIOverlayStyle(
       SystemUiOverlayStyle.dark.copyWith(statusBarColor: Colors.transparent),
     );
@@ -91,7 +113,7 @@ class _HomeScreenState extends State<HomeScreen>
                 subtitle: 'Lecture & study notes',
                 badge: 'Notes',
                 badgeColor: _kPurpleTag,
-                count: '12',
+                count: '$_noteCount',
                 onTap: () => _go(1),
               )),
               SliverToBoxAdapter(child: _buildQuickCard(
@@ -222,7 +244,7 @@ class _HomeScreenState extends State<HomeScreen>
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 4),
       child: Row(
         children: [
-          _StatBadge(label: 'Notes',   value: '12', color: _kPurpleTag, onTap: () => _go(1)),
+          _StatBadge(label: 'Notes',   value: '$_noteCount', color: _kPurpleTag, onTap: () => _go(1)),
           const SizedBox(width: 12),
           _StatBadge(label: 'Tasks',   value: '4',  color: _kBlueTag,   onTap: () => _go(2)),
           const SizedBox(width: 12),
@@ -576,7 +598,7 @@ class _QuickCard extends StatelessWidget {
                     _PillBadge(label: badge, color: badgeColor),
                     const SizedBox(height: 4),
                     Text(
-                      '$count items',
+                      '$count ${count == '1' ? 'item' : 'items'}',
                       style: const TextStyle(
                         fontSize: 11,
                         color: _kTextBody,
