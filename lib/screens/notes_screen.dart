@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_quill/flutter_quill.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // ── Notes screen design tokens (matching reference image) ────────────────────
@@ -21,6 +22,7 @@ class NoteItem {
   final String content;
   final String date;
   final String? formatting;
+  final String? textAlign;
 
   const NoteItem({
     required this.id,
@@ -29,6 +31,7 @@ class NoteItem {
     required this.content,
     required this.date,
     this.formatting,
+    this.textAlign,
   });
 
   NoteItem copyWith({
@@ -38,6 +41,7 @@ class NoteItem {
     String? content,
     String? date,
     String? formatting,
+    String? textAlign,
   }) {
     return NoteItem(
       id: id ?? this.id,
@@ -46,6 +50,7 @@ class NoteItem {
       content: content ?? this.content,
       date: date ?? this.date,
       formatting: formatting ?? this.formatting,
+      textAlign: textAlign ?? this.textAlign,
     );
   }
 
@@ -56,6 +61,7 @@ class NoteItem {
     'content': content,
     'date': date,
     if (formatting != null && formatting!.isNotEmpty) 'formatting': formatting!,
+    if (textAlign != null && textAlign!.isNotEmpty) 'textAlign': textAlign!,
   };
 
   factory NoteItem.fromMap(Map<String, dynamic> map) => NoteItem(
@@ -65,6 +71,7 @@ class NoteItem {
     content: (map['content'] ?? '').toString(),
     date: (map['date'] ?? 'Today').toString(),
     formatting: map['formatting']?.toString(),
+    textAlign: map['textAlign']?.toString() ?? 'left',
   );
 }
 
@@ -865,8 +872,40 @@ class RichTextEditingController extends TextEditingController {
   List<RichStyle> _charStyles = [];
   RichStyle _activeTypingStyle = const RichStyle();
   bool _isTypingStyleExplicit = false;
+  final Map<int, TextAlign> _paragraphAlignments = {};
+  TextAlign _baseAlignment = TextAlign.left;
 
-  RichTextEditingController({String? text, String? formattingJson}) {
+  static TextAlign parseTextAlign(String? str) {
+    switch (str) {
+      case 'center':
+        return TextAlign.center;
+      case 'right':
+        return TextAlign.right;
+      case 'justify':
+        return TextAlign.justify;
+      default:
+        return TextAlign.left;
+    }
+  }
+
+  static String textAlignToString(TextAlign align) {
+    switch (align) {
+      case TextAlign.center:
+        return 'center';
+      case TextAlign.right:
+        return 'right';
+      case TextAlign.justify:
+        return 'justify';
+      default:
+        return 'left';
+    }
+  }
+
+  RichTextEditingController({
+    String? text,
+    String? formattingJson,
+    this._baseAlignment = TextAlign.left,
+  }) {
     if (formattingJson != null && formattingJson.isNotEmpty) {
       _loadFromJson(text ?? '', formattingJson);
     } else if (text != null && text.isNotEmpty) {
@@ -880,44 +919,155 @@ class RichTextEditingController extends TextEditingController {
   }
 
   factory RichTextEditingController.fromNote(
-      String content, String? formatting) {
+    String content,
+    String? formatting, {
+    TextAlign baseAlignment = TextAlign.left,
+  }) {
     return RichTextEditingController(
       text: content,
       formattingJson: formatting,
+      baseAlignment: baseAlignment,
     );
   }
 
-  String? exportFormattingJson() {
-    if (_charStyles.isEmpty) return null;
-    final spans = <Map<String, dynamic>>[];
-    int i = 0;
-    while (i < _charStyles.length) {
-      final style = _charStyles[i];
-      if (style.isEmpty) {
-        i++;
-        continue;
-      }
-      final start = i;
-      while (i < _charStyles.length && _charStyles[i] == style) {
-        i++;
-      }
-      final end = i;
-      spans.add({
-        'start': start,
-        'end': end,
-        ...style.toJson(),
-      });
+  TextAlign get baseAlignment => _baseAlignment;
+  set baseAlignment(TextAlign val) {
+    _baseAlignment = val;
+    notifyListeners();
+  }
+
+  Map<int, TextAlign> get paragraphAlignments =>
+      Map.unmodifiable(_paragraphAlignments);
+
+  int get totalParagraphs => '\n'.allMatches(text).length + 1;
+
+  int getParagraphIndexAt(int pos) {
+    if (text.isEmpty || pos <= 0) return 0;
+    final clamped = pos.clamp(0, text.length);
+    final prefix = text.substring(0, clamped);
+    return '\n'.allMatches(prefix).length;
+  }
+
+  TextAlign getParagraphAlignment(int paragraphIndex) {
+    return _paragraphAlignments[paragraphIndex] ?? _baseAlignment;
+  }
+
+  void setParagraphAlignment(int paragraphIndex, TextAlign alignment) {
+    _paragraphAlignments[paragraphIndex] = alignment;
+    notifyListeners();
+  }
+
+  void setParagraphAlignments(Map<int, TextAlign> alignments) {
+    _paragraphAlignments.clear();
+    _paragraphAlignments.addAll(alignments);
+    notifyListeners();
+  }
+
+  TextAlign getAlignmentAtSelection() {
+    if (!selection.isValid || text.isEmpty) {
+      return getParagraphAlignment(0);
     }
-    if (spans.isEmpty) return null;
-    return jsonEncode(spans);
+    final pos = selection.baseOffset.clamp(0, text.length);
+    final pIdx = getParagraphIndexAt(pos);
+    return getParagraphAlignment(pIdx);
+  }
+
+  void setAlignmentAtSelection(TextAlign alignment) {
+    final pos = selection.isValid ? selection.baseOffset : text.length;
+    final selStart = selection.isValid ? selection.start : pos;
+    final selEnd = selection.isValid ? selection.end : pos;
+
+    final startP = getParagraphIndexAt(selStart);
+    int effectiveEnd = selEnd;
+    if (effectiveEnd > selStart &&
+        text.isNotEmpty &&
+        effectiveEnd <= text.length) {
+      if (text[effectiveEnd - 1] == '\n') {
+        effectiveEnd = effectiveEnd - 1;
+      }
+    }
+    final endP = getParagraphIndexAt(effectiveEnd);
+
+    for (int i = startP; i <= endP; i++) {
+      _paragraphAlignments[i] = alignment;
+    }
+    notifyListeners();
+  }
+
+  void cycleAlignmentAtSelection() {
+    final current = getAlignmentAtSelection();
+    final TextAlign next;
+    switch (current) {
+      case TextAlign.left:
+        next = TextAlign.center;
+        break;
+      case TextAlign.center:
+        next = TextAlign.right;
+        break;
+      case TextAlign.right:
+        next = TextAlign.justify;
+        break;
+      case TextAlign.justify:
+      default:
+        next = TextAlign.left;
+        break;
+    }
+    setAlignmentAtSelection(next);
+  }
+
+  String? exportFormattingJson() {
+    final spans = <Map<String, dynamic>>[];
+    if (_charStyles.isNotEmpty) {
+      int i = 0;
+      while (i < _charStyles.length) {
+        final style = _charStyles[i];
+        if (style.isEmpty) {
+          i++;
+          continue;
+        }
+        final start = i;
+        while (i < _charStyles.length && _charStyles[i] == style) {
+          i++;
+        }
+        final end = i;
+        spans.add({
+          'start': start,
+          'end': end,
+          ...style.toJson(),
+        });
+      }
+    }
+
+    final pAlignMap = <String, String>{};
+    final total = totalParagraphs;
+    for (int p = 0; p < total; p++) {
+      final align = getParagraphAlignment(p);
+      pAlignMap[p.toString()] = textAlignToString(align);
+    }
+
+    final result = <String, dynamic>{
+      if (spans.isNotEmpty) 'spans': spans,
+      if (pAlignMap.isNotEmpty) 'paragraphAlignments': pAlignMap,
+    };
+    if (result.isEmpty) return null;
+    return jsonEncode(result);
   }
 
   void _loadFromJson(String plainText, String formattingJson) {
     text = plainText;
     _charStyles =
         List.filled(plainText.length, const RichStyle(), growable: true);
+    _paragraphAlignments.clear();
     try {
-      final list = jsonDecode(formattingJson) as List<dynamic>;
+      final decoded = jsonDecode(formattingJson);
+      final List<dynamic> list;
+      if (decoded is List) {
+        list = decoded;
+      } else if (decoded is Map<String, dynamic> && decoded['spans'] is List) {
+        list = decoded['spans'] as List<dynamic>;
+      } else {
+        list = [];
+      }
       for (final item in list) {
         if (item is Map<String, dynamic>) {
           final start = (item['start'] as num?)?.toInt() ?? 0;
@@ -927,6 +1077,16 @@ class RichTextEditingController extends TextEditingController {
             _charStyles[i] = style;
           }
         }
+      }
+      if (decoded is Map<String, dynamic> &&
+          decoded['paragraphAlignments'] is Map) {
+        final pMap = decoded['paragraphAlignments'] as Map<String, dynamic>;
+        pMap.forEach((k, v) {
+          final idx = int.tryParse(k);
+          if (idx != null) {
+            _paragraphAlignments[idx] = parseTextAlign(v.toString());
+          }
+        });
       }
     } catch (_) {}
   }
@@ -958,7 +1118,52 @@ class RichTextEditingController extends TextEditingController {
     super.value = newValue;
   }
 
+  void _syncParagraphAlignments(String oldText, String newText) {
+    final oldLines = oldText.split('\n');
+    final newLines = newText.split('\n');
+    final diff = newLines.length - oldLines.length;
+    if (diff == 0) return;
+
+    int firstDiff = 0;
+    while (firstDiff < oldLines.length &&
+        firstDiff < newLines.length &&
+        oldLines[firstDiff] == newLines[firstDiff]) {
+      firstDiff++;
+    }
+
+    final newMap = <int, TextAlign>{};
+    if (diff > 0) {
+      final inheritedAlign =
+          getParagraphAlignment(firstDiff > 0 ? firstDiff - 1 : 0);
+      _paragraphAlignments.forEach((idx, align) {
+        if (idx < firstDiff) {
+          newMap[idx] = align;
+        } else {
+          newMap[idx + diff] = align;
+        }
+      });
+      for (int i = 0; i < diff; i++) {
+        newMap[firstDiff + i] = inheritedAlign;
+      }
+    } else {
+      final removed = -diff;
+      _paragraphAlignments.forEach((idx, align) {
+        if (idx < firstDiff) {
+          newMap[idx] = align;
+        } else if (idx >= firstDiff + removed) {
+          newMap[idx - removed] = align;
+        }
+      });
+    }
+    _paragraphAlignments.clear();
+    _paragraphAlignments.addAll(newMap);
+  }
+
   void _syncStylesWithNewText(String oldText, String newText) {
+    if (oldText != newText) {
+      _syncParagraphAlignments(oldText, newText);
+    }
+
     if (newText.isEmpty) {
       _charStyles.clear();
       return;
@@ -1251,17 +1456,125 @@ class NoteEditorScreen extends StatefulWidget {
 
   const NoteEditorScreen({super.key, this.note});
 
+  /// Migrates and converts existing note storage (plain text, legacy formatting JSON, or Delta)
+  /// into a native Quill [Document].
+  static Document noteToQuillDocument(
+    String content,
+    String? formatting, {
+    String? textAlign,
+  }) {
+    if (formatting != null && formatting.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(formatting);
+        if (decoded is List) {
+          return Document.fromJson(decoded);
+        }
+        if (decoded is Map<String, dynamic>) {
+          if (decoded['ops'] is List) {
+            return Document.fromJson(decoded['ops'] as List<dynamic>);
+          }
+          return _convertLegacyFormattingToQuill(content, decoded, textAlign: textAlign);
+        }
+      } catch (_) {}
+    }
+
+    final doc = Document();
+    if (content.isNotEmpty) {
+      final mig = _migrateLegacyMarkdown(content);
+      final normalized =
+          mig.plainText.endsWith('\n') ? mig.plainText : '${mig.plainText}\n';
+      doc.insert(0, normalized);
+      for (int i = 0; i < mig.styles.length && i < normalized.length; i++) {
+        final s = mig.styles[i];
+        if (s.bold) doc.format(i, 1, Attribute.bold);
+        if (s.italic) doc.format(i, 1, Attribute.italic);
+        if (s.underline) doc.format(i, 1, Attribute.underline);
+      }
+      if (textAlign != null && textAlign.isNotEmpty && textAlign != 'left') {
+        final alignAttr = _parseTextAlignToAttribute(textAlign);
+        if (alignAttr != null) {
+          doc.format(0, normalized.length, alignAttr);
+        }
+      }
+    }
+    return doc;
+  }
+
+  static Document _convertLegacyFormattingToQuill(
+    String content,
+    Map<String, dynamic> legacyJson, {
+    String? textAlign,
+  }) {
+    final doc = Document();
+    final normalized = content.endsWith('\n') ? content : '$content\n';
+    if (normalized.isNotEmpty) {
+      doc.insert(0, normalized);
+    }
+
+    if (legacyJson['spans'] is List) {
+      for (final item in legacyJson['spans'] as List) {
+        if (item is Map<String, dynamic>) {
+          final start = (item['start'] as num?)?.toInt() ?? 0;
+          final end = (item['end'] as num?)?.toInt() ?? 0;
+          final len = (end - start).clamp(0, normalized.length - start);
+          if (len > 0) {
+            if (item['bold'] == true) doc.format(start, len, Attribute.bold);
+            if (item['italic'] == true) doc.format(start, len, Attribute.italic);
+            if (item['underline'] == true) doc.format(start, len, Attribute.underline);
+          }
+        }
+      }
+    }
+
+    if (legacyJson['paragraphAlignments'] is Map) {
+      final pMap = legacyJson['paragraphAlignments'] as Map<String, dynamic>;
+      final lines = normalized.split('\n');
+      int curOffset = 0;
+      for (int p = 0; p < lines.length; p++) {
+        final lineLen = lines[p].length;
+        final alignStr = pMap[p.toString()]?.toString();
+        if (alignStr != null && alignStr != 'left') {
+          final attr = _parseTextAlignToAttribute(alignStr);
+          if (attr != null && curOffset < normalized.length) {
+            doc.format(curOffset, 0, attr);
+          }
+        }
+        curOffset += lineLen + 1;
+      }
+    } else if (textAlign != null && textAlign.isNotEmpty && textAlign != 'left') {
+      final attr = _parseTextAlignToAttribute(textAlign);
+      if (attr != null) {
+        doc.format(0, normalized.length, attr);
+      }
+    }
+
+    return doc;
+  }
+
+  static Attribute? _parseTextAlignToAttribute(String? str) {
+    switch (str?.toLowerCase()) {
+      case 'center':
+        return Attribute.centerAlignment;
+      case 'right':
+        return Attribute.rightAlignment;
+      case 'justify':
+        return Attribute.justifyAlignment;
+      case 'left':
+      default:
+        return null;
+    }
+  }
+
   @override
-  State<NoteEditorScreen> createState() => _NoteEditorScreenState();
+  State<NoteEditorScreen> createState() => NoteEditorScreenState();
 }
 
-class _NoteEditorScreenState extends State<NoteEditorScreen> {
+class NoteEditorScreenState extends State<NoteEditorScreen> {
   late TextEditingController _titleController;
   late TextEditingController _subjectController;
-  late RichTextEditingController _contentController;
+  late QuillController _quillController;
   late FocusNode _contentFocusNode;
-
-  String _lastContent = '';
+  late ScrollController _editorScrollController;
 
   // Toolbar active status flags
   bool _isBoldActive = false;
@@ -1269,6 +1582,9 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   bool _isUnderlineActive = false;
   bool _isBulletActive = false;
   bool _isNumberedActive = false;
+  TextAlign _currentAlignment = TextAlign.left;
+
+  QuillController get quillController => _quillController;
 
   @override
   void initState() {
@@ -1276,37 +1592,47 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     _titleController = TextEditingController(text: widget.note?.title ?? '');
     _subjectController =
         TextEditingController(text: widget.note?.subject ?? '');
-    _contentController = RichTextEditingController.fromNote(
+
+    final doc = NoteEditorScreen.noteToQuillDocument(
       widget.note?.content ?? '',
       widget.note?.formatting,
+      textAlign: widget.note?.textAlign,
+    );
+
+    _quillController = QuillController(
+      document: doc,
+      selection: const TextSelection.collapsed(offset: 0),
     );
     _contentFocusNode = FocusNode();
-    _lastContent = _contentController.text;
+    _editorScrollController = ScrollController();
 
-    _contentController.addListener(_onContentSelectionChanged);
+    _quillController.addListener(_onEditorSelectionChanged);
+    _updateToolbarActiveStates();
   }
 
   @override
   void dispose() {
-    _contentController.removeListener(_onContentSelectionChanged);
+    _quillController.removeListener(_onEditorSelectionChanged);
     _titleController.dispose();
     _subjectController.dispose();
-    _contentController.dispose();
+    _quillController.dispose();
     _contentFocusNode.dispose();
+    _editorScrollController.dispose();
     super.dispose();
   }
 
   String _formatDate() => _formatCurrentDate();
 
-  void _onContentSelectionChanged() {
+  void _onEditorSelectionChanged() {
     _updateToolbarActiveStates();
   }
 
   void _saveNote() {
     final rawTitle = _titleController.text.trim();
     final rawSubject = _subjectController.text.trim();
-    final content = _contentController.text;
-    final formatting = _contentController.exportFormattingJson() ?? '[]';
+    final plainContent = _quillController.document.toPlainText().trimRight();
+    final deltaOps = _quillController.document.toDelta().toJson();
+    final formatting = jsonEncode(deltaOps);
 
     final title = rawTitle.isEmpty ? 'Untitled Note' : rawTitle;
     final subject = rawSubject.isEmpty ? 'General' : rawSubject;
@@ -1316,276 +1642,280 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
           DateTime.now().millisecondsSinceEpoch.toString(),
       title: title,
       subject: subject,
-      content: content,
+      content: plainContent,
       date: _formatDate(),
       formatting: formatting,
+      textAlign: RichTextEditingController.textAlignToString(_currentAlignment),
     );
 
     Navigator.pop(context, updated);
   }
 
-  // ─── Format toggles for Bold, Italic, Underline (Span-based) ───────────────
+  // ─── Text Alignment Methods (Native Block Attributes in Quill) ─────────────
+
+  IconData _getAlignIconFor(TextAlign alignment) {
+    switch (alignment) {
+      case TextAlign.center:
+        return Icons.format_align_center_rounded;
+      case TextAlign.right:
+        return Icons.format_align_right_rounded;
+      case TextAlign.justify:
+        return Icons.format_align_justify_rounded;
+      default:
+        return Icons.format_align_left_rounded;
+    }
+  }
+
+  String _getAlignNameFor(TextAlign alignment) {
+    switch (alignment) {
+      case TextAlign.center:
+        return 'Center';
+      case TextAlign.right:
+        return 'Right';
+      case TextAlign.justify:
+        return 'Justify';
+      default:
+        return 'Left';
+    }
+  }
+
+  void _setTextAlignment(TextAlign alignment) {
+    Attribute alignAttr;
+    switch (alignment) {
+      case TextAlign.center:
+        alignAttr = Attribute.centerAlignment;
+        break;
+      case TextAlign.right:
+        alignAttr = Attribute.rightAlignment;
+        break;
+      case TextAlign.justify:
+        alignAttr = Attribute.justifyAlignment;
+        break;
+      case TextAlign.left:
+      default:
+        alignAttr = Attribute.clone(Attribute.align, null);
+        break;
+    }
+    _quillController.formatSelection(alignAttr);
+    _contentFocusNode.requestFocus();
+    _updateToolbarActiveStates();
+  }
+
+  void _cycleTextAlignment() {
+    final current = _currentAlignment;
+    final TextAlign next;
+    switch (current) {
+      case TextAlign.left:
+        next = TextAlign.center;
+        break;
+      case TextAlign.center:
+        next = TextAlign.right;
+        break;
+      case TextAlign.right:
+        next = TextAlign.justify;
+        break;
+      case TextAlign.justify:
+      default:
+        next = TextAlign.left;
+        break;
+    }
+    _setTextAlignment(next);
+  }
+
+  void _showAlignmentPicker() {
+    final current = _currentAlignment;
+    final savedSelection = _quillController.selection;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        final options = [
+          {
+            'align': TextAlign.left,
+            'label': 'Align Left',
+            'icon': Icons.format_align_left_rounded,
+            'key': 'format_align_left_option'
+          },
+          {
+            'align': TextAlign.center,
+            'label': 'Align Center',
+            'icon': Icons.format_align_center_rounded,
+            'key': 'format_align_center_option'
+          },
+          {
+            'align': TextAlign.right,
+            'label': 'Align Right',
+            'icon': Icons.format_align_right_rounded,
+            'key': 'format_align_right_option'
+          },
+          {
+            'align': TextAlign.justify,
+            'label': 'Justify',
+            'icon': Icons.format_align_justify_rounded,
+            'key': 'format_align_justify_option'
+          },
+        ];
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE5E7EB),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Text Alignment',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1B1E36),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ...options.map((opt) {
+                  final a = opt['align'] as TextAlign;
+                  final isSelected = current == a;
+                  return ListTile(
+                    key: Key(opt['key'] as String),
+                    leading: Icon(
+                      opt['icon'] as IconData,
+                      color: isSelected
+                          ? const Color(0xFF4854F5)
+                          : const Color(0xFF6B7280),
+                    ),
+                    title: Text(
+                      opt['label'] as String,
+                      style: TextStyle(
+                        fontWeight:
+                            isSelected ? FontWeight.w700 : FontWeight.w500,
+                        color: isSelected
+                            ? const Color(0xFF4854F5)
+                            : const Color(0xFF1B1E36),
+                      ),
+                    ),
+                    trailing: isSelected
+                        ? const Icon(Icons.check_rounded,
+                            color: Color(0xFF4854F5))
+                        : null,
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      if (savedSelection.isValid) {
+                        _quillController.updateSelection(
+                          savedSelection,
+                          ChangeSource.local,
+                        );
+                      }
+                      _setTextAlignment(a);
+                    },
+                  );
+                }),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ─── Format toggles for Bold, Italic, Underline ────────────────────────────
 
   void _toggleBold() {
+    final isBold =
+        _quillController.getSelectionStyle().containsKey(Attribute.bold.key);
+    _quillController.formatSelection(
+      isBold ? Attribute.clone(Attribute.bold, null) : Attribute.bold,
+    );
     _contentFocusNode.requestFocus();
-    _contentController.toggleBold();
     _updateToolbarActiveStates();
   }
 
   void _toggleItalic() {
+    final isItalic =
+        _quillController.getSelectionStyle().containsKey(Attribute.italic.key);
+    _quillController.formatSelection(
+      isItalic ? Attribute.clone(Attribute.italic, null) : Attribute.italic,
+    );
     _contentFocusNode.requestFocus();
-    _contentController.toggleItalic();
     _updateToolbarActiveStates();
   }
 
   void _toggleUnderline() {
+    final isUnderline = _quillController
+        .getSelectionStyle()
+        .containsKey(Attribute.underline.key);
+    _quillController.formatSelection(
+      isUnderline
+          ? Attribute.clone(Attribute.underline, null)
+          : Attribute.underline,
+    );
     _contentFocusNode.requestFocus();
-    _contentController.toggleUnderline();
     _updateToolbarActiveStates();
   }
 
   // ─── Bulleted & Numbered List Toggle ───────────────────────────────────────
 
   void _toggleBulletList() {
-    _contentFocusNode.requestFocus();
-    final text = _contentController.text;
-    final selection = _contentController.selection;
-    final pos = selection.isValid ? selection.baseOffset : text.length;
-
-    final selStart = selection.isValid ? selection.start : pos;
-    final selEnd = selection.isValid ? selection.end : pos;
-
-    final firstLineStart =
-        text.lastIndexOf('\n', selStart > 0 ? selStart - 1 : 0);
-    final startLineIdx = firstLineStart == -1 ? 0 : firstLineStart + 1;
-
-    final lastLineEnd = text.indexOf('\n', selEnd);
-    final endLineIdx = lastLineEnd == -1 ? text.length : lastLineEnd;
-
-    final block = text.substring(startLineIdx, endLineIdx);
-    final lines = block.split('\n');
-
-    final bulletRegex = RegExp(r'^\s*•\s+');
-    final allBulleted = lines.every((l) => bulletRegex.hasMatch(l));
-    final numberRegex = RegExp(r'^\s*\d+\.\s+');
-
-    final newLines = <String>[];
-    for (final line in lines) {
-      if (allBulleted) {
-        newLines.add(line.replaceFirst(bulletRegex, ''));
-      } else {
-        if (numberRegex.hasMatch(line)) {
-          newLines.add(line.replaceFirst(numberRegex, '• '));
-        } else if (!bulletRegex.hasMatch(line)) {
-          newLines.add('• $line');
-        } else {
-          newLines.add(line);
-        }
-      }
-    }
-
-    final newBlock = newLines.join('\n');
-    final newText = text.replaceRange(startLineIdx, endLineIdx, newBlock);
-    _lastContent = newText;
-
-    final delta = newBlock.length - block.length;
-    final newCursor = (selEnd + delta).clamp(0, newText.length);
-
-    _contentController.value = TextEditingValue(
-      text: newText,
-      selection: selection.isCollapsed
-          ? TextSelection.collapsed(offset: newCursor)
-          : TextSelection(
-              baseOffset: startLineIdx,
-              extentOffset: startLineIdx + newBlock.length,
-            ),
+    final isUl = _quillController
+            .getSelectionStyle()
+            .attributes[Attribute.list.key]
+            ?.value ==
+        Attribute.ul.value;
+    _quillController.formatSelection(
+      isUl ? Attribute.clone(Attribute.list, null) : Attribute.ul,
     );
+    _contentFocusNode.requestFocus();
     _updateToolbarActiveStates();
   }
 
   void _toggleNumberedList() {
-    _contentFocusNode.requestFocus();
-    final text = _contentController.text;
-    final selection = _contentController.selection;
-    final pos = selection.isValid ? selection.baseOffset : text.length;
-
-    final selStart = selection.isValid ? selection.start : pos;
-    final selEnd = selection.isValid ? selection.end : pos;
-
-    final firstLineStart =
-        text.lastIndexOf('\n', selStart > 0 ? selStart - 1 : 0);
-    final startLineIdx = firstLineStart == -1 ? 0 : firstLineStart + 1;
-
-    final lastLineEnd = text.indexOf('\n', selEnd);
-    final endLineIdx = lastLineEnd == -1 ? text.length : lastLineEnd;
-
-    final block = text.substring(startLineIdx, endLineIdx);
-    final lines = block.split('\n');
-
-    final numberRegex = RegExp(r'^\s*(\d+)\.\s+');
-    final bulletRegex = RegExp(r'^\s*•\s+');
-    final allNumbered = lines.every((l) => numberRegex.hasMatch(l));
-
-    int startNum = 1;
-    if (startLineIdx > 0) {
-      final prevLineStart = text.lastIndexOf('\n', startLineIdx - 2);
-      final pStart = prevLineStart == -1 ? 0 : prevLineStart + 1;
-      final prevLine = text.substring(pStart, startLineIdx - 1);
-      final prevMatch = numberRegex.firstMatch(prevLine);
-      if (prevMatch != null) {
-        startNum = (int.tryParse(prevMatch.group(1) ?? '0') ?? 0) + 1;
-      }
-    }
-
-    final newLines = <String>[];
-    for (int i = 0; i < lines.length; i++) {
-      final line = lines[i];
-      if (allNumbered) {
-        newLines.add(line.replaceFirst(numberRegex, ''));
-      } else {
-        final currentNum = startNum + i;
-        if (numberRegex.hasMatch(line)) {
-          newLines.add(line.replaceFirst(numberRegex, '$currentNum. '));
-        } else if (bulletRegex.hasMatch(line)) {
-          newLines.add(line.replaceFirst(bulletRegex, '$currentNum. '));
-        } else {
-          newLines.add('$currentNum. $line');
-        }
-      }
-    }
-
-    final newBlock = newLines.join('\n');
-    final newText = text.replaceRange(startLineIdx, endLineIdx, newBlock);
-    _lastContent = newText;
-
-    final delta = newBlock.length - block.length;
-    final newCursor = (selEnd + delta).clamp(0, newText.length);
-
-    _contentController.value = TextEditingValue(
-      text: newText,
-      selection: selection.isCollapsed
-          ? TextSelection.collapsed(offset: newCursor)
-          : TextSelection(
-              baseOffset: startLineIdx,
-              extentOffset: startLineIdx + newBlock.length,
-            ),
+    final isOl = _quillController
+            .getSelectionStyle()
+            .attributes[Attribute.list.key]
+            ?.value ==
+        Attribute.ol.value;
+    _quillController.formatSelection(
+      isOl ? Attribute.clone(Attribute.list, null) : Attribute.ol,
     );
-    _updateToolbarActiveStates();
-  }
-
-  // ─── Auto-continue list on Enter ───────────────────────────────────────────
-
-  void _handleContentChanged(String newText) {
-    final selection = _contentController.selection;
-    final oldText = _lastContent;
-    _lastContent = newText;
-
-    // Detect if user pressed Enter (inserted '\n')
-    if (newText.length == oldText.length + 1 &&
-        selection.isCollapsed &&
-        selection.baseOffset > 0) {
-      final pos = selection.baseOffset;
-      if (newText[pos - 1] == '\n') {
-        final prevLineEnd = pos - 1;
-        final prevLineStartIdx =
-            newText.lastIndexOf('\n', prevLineEnd > 0 ? prevLineEnd - 1 : 0);
-        final prevLineStart = prevLineStartIdx == -1 ? 0 : prevLineStartIdx + 1;
-        final prevLine = newText.substring(prevLineStart, prevLineEnd);
-
-        // Empty bullet line -> exit bullet list
-        final emptyBulletRegex = RegExp(r'^\s*•\s*$');
-        if (emptyBulletRegex.hasMatch(prevLine)) {
-          final beforePrevLine = newText.substring(0, prevLineStart);
-          final afterNewline = newText.substring(pos);
-          final adjusted = '$beforePrevLine$afterNewline';
-          _lastContent = adjusted;
-          _contentController.value = TextEditingValue(
-            text: adjusted,
-            selection: TextSelection.collapsed(offset: prevLineStart),
-          );
-          _updateToolbarActiveStates();
-          return;
-        }
-
-        // Bullet line with content -> continue bullet list
-        final bulletMatch = RegExp(r'^\s*•\s+').firstMatch(prevLine);
-        if (bulletMatch != null) {
-          const insertStr = '• ';
-          final updated = newText.replaceRange(pos, pos, insertStr);
-          _lastContent = updated;
-          _contentController.value = TextEditingValue(
-            text: updated,
-            selection: TextSelection.collapsed(offset: pos + insertStr.length),
-          );
-          _updateToolbarActiveStates();
-          return;
-        }
-
-        // Empty numbered line -> exit numbered list
-        final emptyNumberRegex = RegExp(r'^\s*(\d+)\.\s*$');
-        if (emptyNumberRegex.hasMatch(prevLine)) {
-          final beforePrevLine = newText.substring(0, prevLineStart);
-          final afterNewline = newText.substring(pos);
-          final adjusted = '$beforePrevLine$afterNewline';
-          _lastContent = adjusted;
-          _contentController.value = TextEditingValue(
-            text: adjusted,
-            selection: TextSelection.collapsed(offset: prevLineStart),
-          );
-          _updateToolbarActiveStates();
-          return;
-        }
-
-        // Numbered line with content -> continue numbered list
-        final numberMatch = RegExp(r'^\s*(\d+)\.\s+').firstMatch(prevLine);
-        if (numberMatch != null) {
-          final currentNum = int.tryParse(numberMatch.group(1) ?? '1') ?? 1;
-          final nextNum = currentNum + 1;
-          final insertStr = '$nextNum. ';
-          final updated = newText.replaceRange(pos, pos, insertStr);
-          _lastContent = updated;
-          _contentController.value = TextEditingValue(
-            text: updated,
-            selection: TextSelection.collapsed(offset: pos + insertStr.length),
-          );
-          _updateToolbarActiveStates();
-          return;
-        }
-      }
-    }
-
+    _contentFocusNode.requestFocus();
     _updateToolbarActiveStates();
   }
 
   // ─── Active Toolbar State Computation ─────────────────────────────────────
 
   void _updateToolbarActiveStates() {
-    final bold = _contentController.isBoldAtSelection();
-    final italic = _contentController.isItalicAtSelection();
-    final underline = _contentController.isUnderlineAtSelection();
+    final style = _quillController.getSelectionStyle();
+    final bold = style.containsKey(Attribute.bold.key);
+    final italic = style.containsKey(Attribute.italic.key);
+    final underline = style.containsKey(Attribute.underline.key);
 
-    final text = _contentController.text;
-    final selection = _contentController.selection;
-    bool bullet = false;
-    bool numbered = false;
+    final listAttr = style.attributes[Attribute.list.key]?.value;
+    final bullet = listAttr == Attribute.ul.value;
+    final numbered = listAttr == Attribute.ol.value;
 
-    if (selection.isValid) {
-      final pos = selection.baseOffset;
-      final lineStartIdx = text.lastIndexOf('\n', pos > 0 ? pos - 1 : 0);
-      final lStart = lineStartIdx == -1 ? 0 : lineStartIdx + 1;
-      final lineEndIdx = text.indexOf('\n', pos);
-      final lEnd = lineEndIdx == -1 ? text.length : lineEndIdx;
-      final currentLine = text.substring(lStart, lEnd);
-
-      bullet = RegExp(r'^\s*•\s+').hasMatch(currentLine);
-      numbered = RegExp(r'^\s*\d+\.\s+').hasMatch(currentLine);
-    }
+    final alignAttr = style.attributes[Attribute.align.key]?.value;
+    final activeAlign = _parseAttributeValueToTextAlign(alignAttr);
 
     if (bold != _isBoldActive ||
         italic != _isItalicActive ||
         underline != _isUnderlineActive ||
         bullet != _isBulletActive ||
-        numbered != _isNumberedActive) {
+        numbered != _isNumberedActive ||
+        activeAlign != _currentAlignment) {
       if (mounted) {
         setState(() {
           _isBoldActive = bold;
@@ -1593,49 +1923,61 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
           _isUnderlineActive = underline;
           _isBulletActive = bullet;
           _isNumberedActive = numbered;
+          _currentAlignment = activeAlign;
         });
       }
     }
+  }
+
+  static TextAlign _parseAttributeValueToTextAlign(dynamic value) {
+    if (value == Attribute.centerAlignment.value || value == 'center') {
+      return TextAlign.center;
+    }
+    if (value == Attribute.rightAlignment.value || value == 'right') {
+      return TextAlign.right;
+    }
+    if (value == Attribute.justifyAlignment.value || value == 'justify') {
+      return TextAlign.justify;
+    }
+    return TextAlign.left;
   }
 
   // ─── Formula & Symbol Insertion ───────────────────────────────────────────
 
   void _insertFormula(String str) {
     _contentFocusNode.requestFocus();
-    final text = _contentController.text;
-    final selection = _contentController.selection;
-    final pos = selection.isValid ? selection.baseOffset : text.length;
+    final sel = _quillController.selection;
+    final text = _quillController.document.toPlainText();
+    final pos = sel.isValid
+        ? sel.baseOffset.clamp(0, text.length)
+        : (text.isNotEmpty ? text.length - 1 : 0);
 
-    if (selection.isValid && !selection.isCollapsed) {
-      final selected = text.substring(selection.start, selection.end);
+    if (sel.isValid &&
+        !sel.isCollapsed &&
+        sel.start < text.length &&
+        sel.end <= text.length) {
+      final selected = text.substring(sel.start, sel.end);
       String replacement;
-      int cursorOffset;
       if (str == '√') {
         replacement = '√($selected)';
-        cursorOffset = selection.start + replacement.length;
       } else if (str == '∫') {
         replacement = '∫ ($selected) dx';
-        cursorOffset = selection.start + replacement.length;
       } else if (str == 'd/dx') {
         replacement = 'd/dx [$selected]';
-        cursorOffset = selection.start + replacement.length;
       } else {
         replacement = str;
-        cursorOffset = selection.start + str.length;
       }
-      final newText =
-          text.replaceRange(selection.start, selection.end, replacement);
-      _lastContent = newText;
-      _contentController.value = TextEditingValue(
-        text: newText,
-        selection: TextSelection.collapsed(offset: cursorOffset),
+      final len = sel.end - sel.start;
+      _quillController.replaceText(sel.start, len, replacement, null);
+      _quillController.updateSelection(
+        TextSelection.collapsed(offset: sel.start + replacement.length),
+        ChangeSource.local,
       );
     } else {
-      final newText = text.replaceRange(pos, pos, str);
-      _lastContent = newText;
-      _contentController.value = TextEditingValue(
-        text: newText,
-        selection: TextSelection.collapsed(offset: pos + str.length),
+      _quillController.replaceText(pos, 0, str, null);
+      _quillController.updateSelection(
+        TextSelection.collapsed(offset: pos + str.length),
+        ChangeSource.local,
       );
     }
     _updateToolbarActiveStates();
@@ -2144,31 +2486,32 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                       Expanded(
                         child: Padding(
                           padding: const EdgeInsets.all(18),
-                          child: TextField(
+                          child: QuillEditor.basic(
                             key: const Key('note_content_field'),
-                            controller: _contentController,
+                            controller: _quillController,
                             focusNode: _contentFocusNode,
-                            onChanged: _handleContentChanged,
-                            maxLines: null,
-                            expands: true,
-                            keyboardType: TextInputType.multiline,
-                            textAlignVertical: TextAlignVertical.top,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              height: 1.6,
-                              color: _kNHead,
-                              letterSpacing: -0.1,
-                            ),
-                            decoration: const InputDecoration(
-                              hintText:
+                            scrollController: _editorScrollController,
+                            config: QuillEditorConfig(
+                              placeholder:
                                   'Write your notes, formulas, or key concepts here…',
-                              hintStyle: TextStyle(
-                                color: _kNSubHead,
-                                fontSize: 15,
-                                height: 1.6,
+                              padding: EdgeInsets.zero,
+                              scrollable: true,
+                              autoFocus: false,
+                              expands: true,
+                              customStyles: DefaultStyles(
+                                paragraph: DefaultTextBlockStyle(
+                                  const TextStyle(
+                                    fontSize: 15,
+                                    height: 1.6,
+                                    color: _kNHead,
+                                    letterSpacing: -0.1,
+                                  ),
+                                  const HorizontalSpacing(0, 0),
+                                  const VerticalSpacing(0, 0),
+                                  const VerticalSpacing(0, 0),
+                                  null,
+                                ),
                               ),
-                              border: InputBorder.none,
-                              contentPadding: EdgeInsets.zero,
                             ),
                           ),
                         ),
@@ -2244,6 +2587,21 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                                 ),
                                 tooltip: 'Underline',
                                 onTap: _toggleUnderline,
+                              ),
+                              _ToolbarItem(
+                                key: const Key('format_align_button'),
+                                isActive: _currentAlignment != TextAlign.left,
+                                labelWidget: Icon(
+                                  _getAlignIconFor(_currentAlignment),
+                                  size: 20,
+                                  color: _currentAlignment != TextAlign.left
+                                      ? const Color(0xFF4854F5)
+                                      : const Color(0xFF1B1E36),
+                                ),
+                                tooltip:
+                                    'Alignment: ${_getAlignNameFor(_currentAlignment)}',
+                                onTap: _cycleTextAlignment,
+                                onLongPress: _showAlignmentPicker,
                               ),
                               _ToolbarItem(
                                 key: const Key('format_bullet_button'),
@@ -2945,6 +3303,7 @@ class _ToolbarItem extends StatelessWidget {
   final Widget labelWidget;
   final String tooltip;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
   final bool isActive;
 
   const _ToolbarItem({
@@ -2952,6 +3311,7 @@ class _ToolbarItem extends StatelessWidget {
     required this.labelWidget,
     required this.tooltip,
     required this.onTap,
+    this.onLongPress,
     this.isActive = false,
   });
 
@@ -2963,6 +3323,7 @@ class _ToolbarItem extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
+        onLongPress: onLongPress,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -2976,6 +3337,7 @@ class _ToolbarItem extends StatelessWidget {
           ),
           child: Tooltip(
             message: tooltip,
+            triggerMode: TooltipTriggerMode.manual,
             child: labelWidget,
           ),
         ),

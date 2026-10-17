@@ -9,7 +9,7 @@ StudyMate is a clean, modern, and student-focused mobile productivity applicatio
 - **Splash Screen**: Displays brand identity with a 3-second auto-navigation timer to onboarding.
 - **Onboarding Screen**: Welcomes students and provides an entry point with a "Get Started" action.
 - **Home Screen**: Central dashboard featuring greeting, upcoming schedule card, synchronized live stats, and Quick Access navigation cards with dynamic item counts.
-- **Notes Screen & Editor**: Apple Notes-inspired layout with subject-coded icon badges, real-time search, note creation dialog, deletion, and full rich-text editor (Bold, Italic, Underline, Bulleted List, Numbered List, Formulas) with local storage persistence.
+- **Notes Screen & Editor**: Apple Notes-inspired layout with subject-coded icon badges, real-time search, note creation dialog, deletion, and full rich-text editor (Bold, Italic, Underline, Paragraph-Level Text Alignment [Left/Center/Right/Justify] with single/multi-paragraph selection isolation, Bulleted List, Numbered List, Formulas) with local storage persistence.
 - **Tasks Screen**: Modern task manager featuring:
   - Clean pastel aesthetic with segmented filter tabs (**All Tasks** and **Completed**).
   - Smooth, isolated hover states, mouse pointer cursors, and touch/click feedback across all cards, buttons, and checkboxes.
