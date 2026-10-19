@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'notification_settings_screen.dart';
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 // Inspired by the reference screenshot's lavender + white card + purple-accent style.
@@ -34,6 +35,15 @@ class _HomeScreenState extends State<HomeScreen>
   int _noteCount = 3;
   int _taskCount = 4;
   int _timetableCount = 3;
+  String? _firstTodaySubject;
+  String? _firstTodayTime;
+
+  static String _fmtTime(int hour, int minute) {
+    final h = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+    final m = minute.toString().padLeft(2, '0');
+    final period = hour < 12 ? 'AM' : 'PM';
+    return '$h:$m $period';
+  }
 
   @override
   void initState() {
@@ -50,31 +60,117 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _loadNoteCount() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final savedData = prefs.getStringList('studymate_saved_notes');
-      final noteCount = savedData != null ? savedData.length : 3;
 
-      final savedTasks = prefs.getStringList('studymate_saved_tasks');
-      final taskCount = savedTasks != null ? savedTasks.length : 4;
-
-      final rawTimetable = prefs.getString('timetable_entries_v2');
-      int timetableCount = 3;
-      if (rawTimetable != null) {
-        try {
-          final decoded = jsonDecode(rawTimetable);
-          if (decoded is List) {
-            timetableCount = decoded.length;
+      final hasSavedNotes = (prefs.getBool('studymate_notes_saved') ?? false) ||
+          prefs.containsKey('studymate_saved_notes') ||
+          prefs.containsKey('studymate_notes_json');
+      int noteCount = 3;
+      if (hasSavedNotes) {
+        final rawJson = prefs.getString('studymate_notes_json');
+        if (rawJson != null) {
+          try {
+            noteCount = (jsonDecode(rawJson) as List).length;
+          } catch (_) {
+            noteCount = 0;
           }
-        } catch (_) {}
+        } else {
+          final savedData = prefs.getStringList('studymate_saved_notes');
+          noteCount = savedData != null ? savedData.length : 0;
+        }
+      } else {
+        final savedData = prefs.getStringList('studymate_saved_notes');
+        noteCount = savedData != null ? savedData.length : 3;
+      }
+
+      final hasSavedTasks = (prefs.getBool('studymate_tasks_saved') ?? false) ||
+          prefs.containsKey('studymate_saved_tasks') ||
+          prefs.containsKey('studymate_tasks_json');
+      int taskCount = 4;
+      if (hasSavedTasks) {
+        final rawJson = prefs.getString('studymate_tasks_json');
+        if (rawJson != null) {
+          try {
+            taskCount = (jsonDecode(rawJson) as List).length;
+          } catch (_) {
+            taskCount = 0;
+          }
+        } else {
+          final savedTasks = prefs.getStringList('studymate_saved_tasks');
+          taskCount = savedTasks != null ? savedTasks.length : 0;
+        }
+      } else {
+        final savedTasks = prefs.getStringList('studymate_saved_tasks');
+        taskCount = savedTasks != null ? savedTasks.length : 4;
+      }
+
+      final hasSavedTimetable =
+          (prefs.getBool('studymate_timetable_saved') ?? false) ||
+              prefs.containsKey('timetable_entries_v2');
+      int timetableCount = 3;
+      String? firstTodaySubject;
+      String? firstTodayTime;
+
+      final now = DateTime.now();
+      final weekday = now.weekday; // 1=Mon, ..., 5=Fri
+      final todayDay = (weekday >= 1 && weekday <= 5)
+          ? const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'][weekday - 1]
+          : null;
+
+      if (hasSavedTimetable) {
+        final rawTimetable = prefs.getString('timetable_entries_v2');
+        if (rawTimetable != null) {
+          try {
+            final decoded = jsonDecode(rawTimetable);
+            if (decoded is List) {
+              if (todayDay != null) {
+                final todayEntries = decoded.where((e) {
+                  if (e is Map) {
+                    final d = e['day']?.toString();
+                    return d?.toLowerCase() == todayDay.toLowerCase();
+                  }
+                  return false;
+                }).toList();
+
+                timetableCount = todayEntries.length;
+                if (todayEntries.isNotEmpty) {
+                  final first = todayEntries.first as Map;
+                  firstTodaySubject = first['subject']?.toString();
+                  final sH = first['startHour'] as int? ?? 9;
+                  final sM = first['startMinute'] as int? ?? 0;
+                  final eH = first['endHour'] as int? ?? 10;
+                  final eM = first['endMinute'] as int? ?? 30;
+                  firstTodayTime = '${_fmtTime(sH, sM)} – ${_fmtTime(eH, eM)}';
+                }
+              } else {
+                timetableCount = 0;
+              }
+            }
+          } catch (_) {
+            timetableCount = 0;
+          }
+        } else {
+          timetableCount = 0;
+        }
+      } else {
+        timetableCount = (weekday >= 1 && weekday <= 5) ? 3 : 0;
+        if (timetableCount > 0) {
+          firstTodaySubject = 'Calculus II';
+          firstTodayTime = '09:00 AM • Room 204';
+        }
       }
 
       if (mounted &&
           (_noteCount != noteCount ||
               _taskCount != taskCount ||
-              _timetableCount != timetableCount)) {
+              _timetableCount != timetableCount ||
+              _firstTodaySubject != firstTodaySubject ||
+              _firstTodayTime != firstTodayTime)) {
         setState(() {
           _noteCount = noteCount;
           _taskCount = taskCount;
           _timetableCount = timetableCount;
+          _firstTodaySubject = firstTodaySubject;
+          _firstTodayTime = firstTodayTime;
         });
       }
     } catch (_) {}
@@ -217,7 +313,14 @@ class _HomeScreenState extends State<HomeScreen>
           // Bell button
           _TopBarBtn(
             icon: Icons.notifications_none_rounded,
-            onTap: () {},
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const NotificationSettingsScreen(),
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -254,7 +357,12 @@ class _HomeScreenState extends State<HomeScreen>
           ),
           const SizedBox(height: 20),
           // Hero card  ── gradient-outlined card with class info
-          _HeroCard(onViewTimetable: () => _go(3)),
+          _HeroCard(
+            onViewTimetable: () => _go(3),
+            hasClasses: _timetableCount > 0,
+            classSubject: _firstTodaySubject,
+            classTime: _firstTodayTime,
+          ),
         ],
       ),
     );
@@ -358,7 +466,15 @@ class _TopBarBtn extends StatelessWidget {
 
 class _HeroCard extends StatelessWidget {
   final VoidCallback onViewTimetable;
-  const _HeroCard({required this.onViewTimetable});
+  final bool hasClasses;
+  final String? classSubject;
+  final String? classTime;
+  const _HeroCard({
+    required this.onViewTimetable,
+    this.hasClasses = true,
+    this.classSubject,
+    this.classTime,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -392,9 +508,9 @@ class _HeroCard extends StatelessWidget {
                     color: Colors.white.withValues(alpha: 0.22),
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: const Text(
-                    "Today's Class",
-                    style: TextStyle(
+                  child: Text(
+                    hasClasses ? "Today's Class" : "Today's Schedule",
+                    style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                       color: Colors.white,
@@ -403,9 +519,11 @@ class _HeroCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 10),
-                const Text(
-                  'Calculus II',
-                  style: TextStyle(
+                Text(
+                  hasClasses
+                      ? (classSubject ?? 'Calculus II')
+                      : 'No Classes Scheduled',
+                  style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
                     color: Colors.white,
@@ -413,9 +531,11 @@ class _HeroCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                const Text(
-                  '09:00 AM • Room 204',
-                  style: TextStyle(
+                Text(
+                  hasClasses
+                      ? (classTime ?? '09:00 AM • Room 204')
+                      : 'Your schedule is clear • Enjoy your day!',
+                  style: const TextStyle(
                     fontSize: 13,
                     color: Colors.white70,
                     fontWeight: FontWeight.w400,
@@ -431,9 +551,9 @@ class _HeroCard extends StatelessWidget {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: const Text(
-                      'View Schedule',
-                      style: TextStyle(
+                    child: Text(
+                      hasClasses ? 'View Schedule' : 'View Timetable',
+                      style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                         color: Color(0xFF6C63FF),

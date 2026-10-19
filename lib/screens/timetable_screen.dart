@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/notification_service.dart';
 
 // ─── Design Tokens matching reference image ─────────────────────────────────
 const _kBgColor       = Color(0xFFF8F9FE); // clean light background
@@ -51,6 +52,16 @@ class TimetableEntry {
           minute: json['endMinute'] as int,
         ),
       );
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TimetableEntry &&
+          runtimeType == other.runtimeType &&
+          id == other.id;
+
+  @override
+  int get hashCode => id.hashCode;
 
   static String _normalizeDay(String raw) {
     switch (raw.toLowerCase()) {
@@ -183,12 +194,19 @@ class _TimetableScreenState extends State<TimetableScreen> {
   Future<void> _loadEntries() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(_kPrefsKey);
-      if (raw != null) {
-        final List decoded = jsonDecode(raw) as List;
-        final loaded = decoded
-            .map((e) => TimetableEntry.fromJson(e as Map<String, dynamic>))
-            .toList();
+      final hasSaved = (prefs.getBool('studymate_timetable_saved') ?? false) ||
+          prefs.containsKey(_kPrefsKey);
+      if (hasSaved) {
+        final raw = prefs.getString(_kPrefsKey);
+        List<TimetableEntry> loaded = [];
+        if (raw != null) {
+          try {
+            final List decoded = jsonDecode(raw) as List;
+            loaded = decoded
+                .map((e) => TimetableEntry.fromJson(e as Map<String, dynamic>))
+                .toList();
+          } catch (_) {}
+        }
         if (mounted) {
           setState(() {
             _cachedEntries = loaded;
@@ -213,6 +231,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
         _kPrefsKey,
         jsonEncode(_cachedEntries.map((e) => e.toJson()).toList()),
       );
+      await prefs.setBool('studymate_timetable_saved', true);
     } catch (_) {}
   }
 
@@ -232,6 +251,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
       _cachedEntries.add(entry);
     });
     _persist();
+    NotificationService.instance.scheduleClassReminder(entry);
   }
 
   void _updateEntry(TimetableEntry updated) {
@@ -240,16 +260,18 @@ class _TimetableScreenState extends State<TimetableScreen> {
       if (idx != -1) _cachedEntries[idx] = updated;
     });
     _persist();
+    NotificationService.instance.scheduleClassReminder(updated);
   }
 
   void _deleteEntry(TimetableEntry entry) {
-    final deletedIndex = _cachedEntries.indexOf(entry);
+    final deletedIndex = _cachedEntries.indexWhere((e) => e.id == entry.id);
     if (deletedIndex == -1) return;
 
     setState(() {
       _cachedEntries.removeAt(deletedIndex);
     });
     _persist();
+    NotificationService.instance.cancelClassReminder(entry.id);
 
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
@@ -265,10 +287,63 @@ class _TimetableScreenState extends State<TimetableScreen> {
               _cachedEntries.insert(deletedIndex, entry);
             });
             _persist();
+            NotificationService.instance.scheduleClassReminder(entry);
           },
         ),
       ),
     );
+  }
+
+  Future<void> _confirmClearAll() async {
+    final count = _cachedEntries.length;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Clear Timetable?',
+          style: TextStyle(fontWeight: FontWeight.w700, color: _kTextHead),
+        ),
+        content: Text(
+          'This will remove all $count classes from your weekly timetable.',
+          style: const TextStyle(color: Color(0xFF6B7280), height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel', style: TextStyle(color: Color(0xFF6B7280), fontWeight: FontWeight.w600)),
+          ),
+          ElevatedButton(
+            key: const Key('confirm_clear_all_button'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _kDeleteIcon,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Clear All', style: TextStyle(fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      setState(() {
+        _cachedEntries.clear();
+      });
+      _persist();
+      NotificationService.instance.cancelAllClassReminders();
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('All classes cleared from timetable'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    }
   }
 
   Future<void> _openEntryDialog({TimetableEntry? existing}) async {
@@ -588,34 +663,70 @@ class _TimetableScreenState extends State<TimetableScreen> {
                       ),
                     ],
                   ),
-                  // Top right rounded lavender Add (+) button matching reference image
-                  Tooltip(
-                    message: 'Add Class',
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: _kLavenderSoft,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          key: const Key('add_class_header_button'),
-                          borderRadius: BorderRadius.circular(14),
-                          mouseCursor: SystemMouseCursors.click,
-                          onTap: () => _openEntryDialog(),
-                          hoverColor: _kPurplePrimary.withValues(alpha: 0.12),
-                          child: const Center(
-                            child: Icon(
-                              Icons.add_rounded,
-                              color: _kPurplePrimary,
-                              size: 26,
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_cachedEntries.isNotEmpty) ...[
+                        Tooltip(
+                          message: 'Clear All Classes',
+                          child: Container(
+                            width: 44,
+                            height: 44,
+                            margin: const EdgeInsets.only(right: 8),
+                            decoration: BoxDecoration(
+                              color: _kLavenderSoft,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                key: const Key('clear_all_header_button'),
+                                borderRadius: BorderRadius.circular(14),
+                                mouseCursor: SystemMouseCursors.click,
+                                onTap: _confirmClearAll,
+                                hoverColor: _kDeleteIcon.withValues(alpha: 0.12),
+                                child: const Center(
+                                  child: Icon(
+                                    Icons.delete_sweep_rounded,
+                                    color: _kDeleteIcon,
+                                    size: 24,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                      // Top right rounded lavender Add (+) button matching reference image
+                      Tooltip(
+                        message: 'Add Class',
+                        child: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: _kLavenderSoft,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              key: const Key('add_class_header_button'),
+                              borderRadius: BorderRadius.circular(14),
+                              mouseCursor: SystemMouseCursors.click,
+                              onTap: () => _openEntryDialog(),
+                              hoverColor: _kPurplePrimary.withValues(alpha: 0.12),
+                              child: const Center(
+                                child: Icon(
+                                  Icons.add_rounded,
+                                  color: _kPurplePrimary,
+                                  size: 26,
+                                ),
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
                 ],
               ),
@@ -631,6 +742,8 @@ class _TimetableScreenState extends State<TimetableScreen> {
                 children: List.generate(_days.length, (i) {
                   final isSelected = _selectedDayIndex == i;
                   final day = _days[i];
+                  final dayClassCount =
+                      _cachedEntries.where((e) => e.day == day).length;
 
                   return InkWell(
                     key: Key('day_tab_$day'),
@@ -645,17 +758,42 @@ class _TimetableScreenState extends State<TimetableScreen> {
                     highlightColor: Colors.transparent,
                     splashColor: Colors.transparent,
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            day,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                              color: isSelected ? _kPurplePrimary : _kTextMuted,
-                            ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                day,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                  color: isSelected ? _kPurplePrimary : _kTextMuted,
+                                ),
+                              ),
+                              if (dayClassCount > 0) ...[
+                                const SizedBox(width: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? _kPurplePrimary.withValues(alpha: 0.15)
+                                        : const Color(0xFFE8EAFD),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    '$dayClassCount',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: isSelected ? _kPurplePrimary : _kTextMuted,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                           const SizedBox(height: 8),
                           // Active purple indicator bar
@@ -680,25 +818,27 @@ class _TimetableScreenState extends State<TimetableScreen> {
 
             // ── Classes List ─────────────────────────────────────────────────
             Expanded(
-              child: entries.isEmpty
-                  ? _buildEmptyState()
-                  : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 100),
-                      physics: const BouncingScrollPhysics(),
-                      itemCount: entries.length,
-                      itemBuilder: (context, index) {
-                        final entry = entries[index];
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: _TimetableCard(
-                            key: ValueKey(entry.id),
-                            entry: entry,
-                            onEdit: () => _openEntryDialog(existing: entry),
-                            onDelete: () => _deleteEntry(entry),
-                          ),
-                        );
-                      },
-                    ),
+              child: _cachedEntries.isEmpty
+                  ? _buildEmptyState(isTotalEmpty: true)
+                  : entries.isEmpty
+                      ? _buildEmptyState(isTotalEmpty: false)
+                      : ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(24, 0, 24, 100),
+                          physics: const BouncingScrollPhysics(),
+                          itemCount: entries.length,
+                          itemBuilder: (context, index) {
+                            final entry = entries[index];
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _TimetableCard(
+                                key: ValueKey(entry.id),
+                                entry: entry,
+                                onDelete: () => _deleteEntry(entry),
+                                onEdit: () => _openEntryDialog(existing: entry),
+                              ),
+                            );
+                          },
+                        ),
             ),
           ],
         ),
@@ -706,7 +846,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState({bool isTotalEmpty = false}) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 40),
@@ -727,23 +867,69 @@ class _TimetableScreenState extends State<TimetableScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
-              'No classes scheduled',
-              style: TextStyle(
+            Text(
+              isTotalEmpty
+                  ? 'No classes scheduled yet'
+                  : 'No classes scheduled',
+              style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
                 color: _kTextHead,
               ),
             ),
             const SizedBox(height: 6),
-            const Text(
-              'Tap the + button to add a class for this day!',
+            Text(
+              isTotalEmpty
+                  ? 'Your timetable is empty. Tap "+ Add Class" to set up your weekly schedule!'
+                  : 'No classes for ${_days[_selectedDayIndex]}. ${_cachedEntries.length} ${_cachedEntries.length == 1 ? "class" : "classes"} scheduled on other days.',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 13,
                 color: _kTextMuted,
               ),
             ),
+            if (isTotalEmpty) ...[
+              const SizedBox(height: 18),
+              ElevatedButton.icon(
+                key: const Key('empty_add_class_button'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _kPurplePrimary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  elevation: 0,
+                ),
+                onPressed: () => _openEntryDialog(),
+                icon: const Icon(Icons.add_rounded, size: 20),
+                label: const Text(
+                  'Add Class',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                ),
+              ),
+            ] else if (_cachedEntries.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                key: const Key('empty_clear_all_button'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _kDeleteIcon,
+                  side: const BorderSide(color: Color(0xFFFCDADA)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                ),
+                onPressed: _confirmClearAll,
+                icon: const Icon(Icons.delete_sweep_rounded, size: 18),
+                label: Text(
+                  'Clear All Classes (${_cachedEntries.length})',
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                ),
+              ),
+            ],
           ],
         ),
       ),

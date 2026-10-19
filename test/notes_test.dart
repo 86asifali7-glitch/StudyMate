@@ -780,4 +780,45 @@ void main() {
     // Empty state should be visible
     expect(find.text('No notes yet'), findsOneWidget);
   });
+
+  testWidgets('Deleting all notes one by one immediately shows empty notes screen without refresh',
+      (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues({});
+    NotesScreen.resetForTesting();
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: NotesScreen(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Initially 3 notes exist
+    expect(find.text('Calculus Derivatives & Integrals'), findsOneWidget);
+    expect(find.text("Newton's Laws of Motion Summary"), findsOneWidget);
+    expect(find.text('Organic Chemistry Reactions'), findsOneWidget);
+
+    // Delete note 1
+    await tester.tap(find.byTooltip('Delete Note').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+
+    // Delete note 2
+    await tester.tap(find.byTooltip('Delete Note').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+
+    // Delete note 3 (last note)
+    await tester.tap(find.byTooltip('Delete Note').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+
+    // Verify empty state is displayed immediately without any refresh
+    expect(find.text('No notes yet'), findsOneWidget);
+    expect(find.text('Tap "New Note" to capture your first idea.'), findsOneWidget);
+    expect(find.text('0 notes saved'), findsOneWidget);
+  });
 }

@@ -73,6 +73,14 @@ class NoteItem {
     formatting: map['formatting']?.toString(),
     textAlign: map['textAlign']?.toString() ?? 'left',
   );
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is NoteItem && runtimeType == other.runtimeType && id == other.id;
+
+  @override
+  int get hashCode => id.hashCode;
 }
 
 String _formatCurrentDate() {
@@ -198,11 +206,28 @@ class _NotesScreenState extends State<NotesScreen> {
   Future<void> _loadNotesFromStorage() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final savedData = prefs.getStringList('studymate_saved_notes');
-      if (savedData != null) {
-        final loaded = savedData
-            .map((item) => NoteItem.fromMap(jsonDecode(item) as Map<String, dynamic>))
-            .toList();
+      final hasSaved = (prefs.getBool('studymate_notes_saved') ?? false) ||
+          prefs.containsKey('studymate_saved_notes') ||
+          prefs.containsKey('studymate_notes_json');
+      if (hasSaved) {
+        final rawJson = prefs.getString('studymate_notes_json');
+        List<NoteItem> loaded = [];
+        if (rawJson != null) {
+          try {
+            final List decoded = jsonDecode(rawJson) as List;
+            loaded = decoded
+                .map((item) => NoteItem.fromMap(item as Map<String, dynamic>))
+                .toList();
+          } catch (_) {}
+        } else {
+          final legacyData = prefs.getStringList('studymate_saved_notes');
+          if (legacyData != null) {
+            loaded = legacyData
+                .map((item) =>
+                    NoteItem.fromMap(jsonDecode(item) as Map<String, dynamic>))
+                .toList();
+          }
+        }
         if (mounted) {
           setState(() {
             _cachedNotes = loaded;
@@ -226,6 +251,11 @@ class _NotesScreenState extends State<NotesScreen> {
       final jsonList =
           _cachedNotes.map((note) => jsonEncode(note.toMap())).toList();
       await prefs.setStringList('studymate_saved_notes', jsonList);
+      await prefs.setString(
+        'studymate_notes_json',
+        jsonEncode(_cachedNotes.map((n) => n.toMap()).toList()),
+      );
+      await prefs.setBool('studymate_notes_saved', true);
     } catch (_) {}
   }
 
@@ -425,17 +455,20 @@ class _NotesScreenState extends State<NotesScreen> {
     }
   }
 
-  void _deleteNote(int index) {
+  void _deleteNote(String id) {
     setState(() {
-      _cachedNotes.removeAt(index);
+      _cachedNotes.removeWhere((n) => n.id == id);
     });
     _persistNotes();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Note deleted'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+    try {
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Note deleted'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } catch (_) {}
   }
 
   @override
@@ -579,13 +612,14 @@ class _NotesScreenState extends State<NotesScreen> {
                       itemCount: notes.length,
                       itemBuilder: (context, index) {
                         final note = notes[index];
-                        final globalIndex = _cachedNotes.indexOf(note);
                         return Padding(
+                          key: ValueKey(note.id),
                           padding: const EdgeInsets.only(bottom: 12),
                           child: _NoteCard(
+                            key: ValueKey('note_card_${note.id}'),
                             note: note,
                             onTap: () => _openNoteEditor(note: note),
-                            onDelete: () => _deleteNote(globalIndex),
+                            onDelete: () => _deleteNote(note.id),
                           ),
                         );
                       },
@@ -2722,6 +2756,7 @@ class _NoteCard extends StatelessWidget {
   final VoidCallback? onDelete;
 
   const _NoteCard({
+    super.key,
     required this.note,
     required this.onTap,
     this.onDelete,

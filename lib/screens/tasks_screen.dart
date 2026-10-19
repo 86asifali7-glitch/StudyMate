@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/notification_service.dart';
 
 // ─── Design Tokens matching reference image ─────────────────────────────────
 const _kBgColor      = Color(0xFFF8F9FE); // clean light background
@@ -23,6 +24,8 @@ class TaskItem {
   bool isCompleted;
   String due;
   String originalDue;
+  DateTime? dueDateTime;
+  DateTime? reminderDateTime;
 
   TaskItem({
     required this.id,
@@ -30,6 +33,8 @@ class TaskItem {
     required this.isCompleted,
     required this.due,
     String? originalDue,
+    this.dueDateTime,
+    this.reminderDateTime,
   }) : originalDue = originalDue ?? due;
 
   Map<String, dynamic> toMap() => {
@@ -38,6 +43,9 @@ class TaskItem {
         'isCompleted': isCompleted,
         'due': due,
         'originalDue': originalDue,
+        if (dueDateTime != null) 'dueDateTime': dueDateTime!.toIso8601String(),
+        if (reminderDateTime != null)
+          'reminderDateTime': reminderDateTime!.toIso8601String(),
       };
 
   factory TaskItem.fromMap(Map<String, dynamic> map) => TaskItem(
@@ -46,7 +54,21 @@ class TaskItem {
         isCompleted: map['isCompleted'] == true,
         due: (map['due'] ?? 'Pending').toString(),
         originalDue: (map['originalDue'] ?? map['due'] ?? 'Pending').toString(),
+        dueDateTime: map['dueDateTime'] != null
+            ? DateTime.tryParse(map['dueDateTime'].toString())
+            : null,
+        reminderDateTime: map['reminderDateTime'] != null
+            ? DateTime.tryParse(map['reminderDateTime'].toString())
+            : null,
       );
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TaskItem && runtimeType == other.runtimeType && id == other.id;
+
+  @override
+  int get hashCode => id.hashCode;
 }
 
 class TasksScreen extends StatefulWidget {
@@ -146,11 +168,28 @@ class _TasksScreenState extends State<TasksScreen> {
   Future<void> _loadTasksFromStorage() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final savedData = prefs.getStringList(_kPrefsKey);
-      if (savedData != null) {
-        final loaded = savedData
-            .map((item) => TaskItem.fromMap(jsonDecode(item) as Map<String, dynamic>))
-            .toList();
+      final hasSaved = (prefs.getBool('studymate_tasks_saved') ?? false) ||
+          prefs.containsKey(_kPrefsKey) ||
+          prefs.containsKey('studymate_tasks_json');
+      if (hasSaved) {
+        final rawJson = prefs.getString('studymate_tasks_json');
+        List<TaskItem> loaded = [];
+        if (rawJson != null) {
+          try {
+            final List decoded = jsonDecode(rawJson) as List;
+            loaded = decoded
+                .map((item) => TaskItem.fromMap(item as Map<String, dynamic>))
+                .toList();
+          } catch (_) {}
+        } else {
+          final legacyData = prefs.getStringList(_kPrefsKey);
+          if (legacyData != null) {
+            loaded = legacyData
+                .map((item) =>
+                    TaskItem.fromMap(jsonDecode(item) as Map<String, dynamic>))
+                .toList();
+          }
+        }
         if (mounted) {
           setState(() {
             _cachedTasks = loaded;
@@ -173,6 +212,11 @@ class _TasksScreenState extends State<TasksScreen> {
       final prefs = await SharedPreferences.getInstance();
       final jsonList = _cachedTasks.map((t) => jsonEncode(t.toMap())).toList();
       await prefs.setStringList(_kPrefsKey, jsonList);
+      await prefs.setString(
+        'studymate_tasks_json',
+        jsonEncode(_cachedTasks.map((t) => t.toMap()).toList()),
+      );
+      await prefs.setBool('studymate_tasks_saved', true);
     } catch (_) {}
   }
 
@@ -193,16 +237,22 @@ class _TasksScreenState extends State<TasksScreen> {
       }
     });
     _persistTasks();
+    if (task.isCompleted) {
+      NotificationService.instance.cancelTaskReminder(task.id);
+    } else {
+      NotificationService.instance.scheduleTaskReminder(task);
+    }
   }
 
   void _deleteTask(TaskItem task) {
-    final deletedIndex = _cachedTasks.indexOf(task);
+    final deletedIndex = _cachedTasks.indexWhere((t) => t.id == task.id);
     if (deletedIndex == -1) return;
 
     setState(() {
       _cachedTasks.removeAt(deletedIndex);
     });
     _persistTasks();
+    NotificationService.instance.cancelTaskReminder(task.id);
 
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
@@ -218,6 +268,9 @@ class _TasksScreenState extends State<TasksScreen> {
               _cachedTasks.insert(deletedIndex, task);
             });
             _persistTasks();
+            if (!task.isCompleted) {
+              NotificationService.instance.scheduleTaskReminder(task);
+            }
           },
         ),
       ),
@@ -227,6 +280,7 @@ class _TasksScreenState extends State<TasksScreen> {
   void _showAddTaskDialog() {
     final titleController = TextEditingController();
     String selectedDue = 'Due Tomorrow';
+    DateTime? selectedDateTime;
     final duePresets = ['Due Tomorrow', 'Due Friday', 'Due Sunday', 'Next Week', 'Due Today'];
 
     showDialog(
@@ -239,152 +293,247 @@ class _TasksScreenState extends State<TasksScreen> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(24),
               ),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 38,
-                          height: 38,
-                          decoration: BoxDecoration(
-                            color: _kPrimaryBlue.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(10),
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color: _kPrimaryBlue.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.add_task_rounded,
+                                color: _kPrimaryBlue, size: 20),
                           ),
-                          child: const Icon(Icons.add_task_rounded,
-                              color: _kPrimaryBlue, size: 20),
-                        ),
-                        const SizedBox(width: 12),
-                        const Text(
-                          'Add New Task',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            color: _kTextHead,
+                          const SizedBox(width: 12),
+                          const Text(
+                            'Add New Task',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: _kTextHead,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 18),
-                    TextField(
-                      key: const Key('add_task_title_field'),
-                      controller: titleController,
-                      autofocus: true,
-                      style: const TextStyle(fontSize: 14, color: _kTextHead),
-                      decoration: InputDecoration(
-                        hintText: 'e.g. Complete Calculus Problem Set 3',
-                        hintStyle: const TextStyle(fontSize: 13, color: _kTextMuted),
-                        filled: true,
-                        fillColor: const Color(0xFFF8F9FE),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE2E6F2)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE2E6F2)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: _kPrimaryBlue, width: 1.5),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      TextField(
+                        key: const Key('add_task_title_field'),
+                        controller: titleController,
+                        autofocus: true,
+                        style: const TextStyle(fontSize: 14, color: _kTextHead),
+                        decoration: InputDecoration(
+                          hintText: 'e.g. Complete Calculus Problem Set 3',
+                          hintStyle: const TextStyle(fontSize: 13, color: _kTextMuted),
+                          filled: true,
+                          fillColor: const Color(0xFFF8F9FE),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFE2E6F2)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFE2E6F2)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: _kPrimaryBlue, width: 1.5),
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 14),
-                    const Text(
-                      'Due date / time',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: _kTextMuted,
+                      const SizedBox(height: 14),
+                      const Text(
+                        'Due date / time',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: _kTextMuted,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: duePresets.map((preset) {
-                        final isSelected = selectedDue == preset;
-                        return Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: () {
-                              setDialogState(() => selectedDue = preset);
-                            },
-                            mouseCursor: SystemMouseCursors.click,
-                            borderRadius: BorderRadius.circular(20),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 150),
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: isSelected ? _kPrimaryBlue : const Color(0xFFF1F3F9),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          ...duePresets.map((preset) {
+                            final isSelected = selectedDue == preset && selectedDateTime == null;
+                            return Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () {
+                                  setDialogState(() {
+                                    selectedDue = preset;
+                                    selectedDateTime = null;
+                                  });
+                                },
+                                mouseCursor: SystemMouseCursors.click,
                                 borderRadius: BorderRadius.circular(20),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 150),
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: isSelected ? _kPrimaryBlue : const Color(0xFFF1F3F9),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Text(
+                                    preset,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: isSelected ? Colors.white : const Color(0xFF4B5565),
+                                    ),
+                                  ),
+                                ),
                               ),
-                              child: Text(
-                                preset,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: isSelected ? Colors.white : const Color(0xFF4B5565),
+                            );
+                          }),
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () async {
+                                final now = DateTime.now();
+                                final pickedDate = await showDatePicker(
+                                  context: dialogCtx,
+                                  initialDate: selectedDateTime ?? now,
+                                  firstDate: now,
+                                  lastDate: now.add(const Duration(days: 365)),
+                                );
+                                if (pickedDate != null && dialogCtx.mounted) {
+                                  final pickedTime = await showTimePicker(
+                                    context: dialogCtx,
+                                    initialTime: selectedDateTime != null
+                                        ? TimeOfDay(
+                                            hour: selectedDateTime!.hour,
+                                            minute: selectedDateTime!.minute)
+                                        : TimeOfDay.now(),
+                                  );
+                                  if (pickedTime != null) {
+                                    final dt = DateTime(
+                                      pickedDate.year,
+                                      pickedDate.month,
+                                      pickedDate.day,
+                                      pickedTime.hour,
+                                      pickedTime.minute,
+                                    );
+                                    final period =
+                                        pickedTime.period == DayPeriod.am ? 'AM' : 'PM';
+                                    final h = pickedTime.hourOfPeriod == 0
+                                        ? 12
+                                        : pickedTime.hourOfPeriod;
+                                    final m = pickedTime.minute.toString().padLeft(2, '0');
+                                    final formatted =
+                                        'Due ${pickedDate.month}/${pickedDate.day} at $h:$m $period';
+                                    setDialogState(() {
+                                      selectedDateTime = dt;
+                                      selectedDue = formatted;
+                                    });
+                                  }
+                                }
+                              },
+                              borderRadius: BorderRadius.circular(20),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: selectedDateTime != null
+                                      ? _kPrimaryBlue
+                                      : const Color(0xFFE8EEFF),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: selectedDateTime != null
+                                        ? _kPrimaryBlue
+                                        : const Color(0xFFB4C6FF),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.alarm_rounded,
+                                      size: 14,
+                                      color: selectedDateTime != null
+                                          ? Colors.white
+                                          : _kPrimaryBlue,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      selectedDateTime != null
+                                          ? selectedDue
+                                          : 'Pick Exact Time (Reminder)',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: selectedDateTime != null
+                                            ? Colors.white
+                                            : _kPrimaryBlue,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
                           ),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 22),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          child: const Text(
-                            'Cancel',
-                            style: TextStyle(color: Color(0xFF6B7280), fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        ElevatedButton(
-                          key: const Key('dialog_create_task_button'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _kPrimaryBlue,
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                        ],
+                      ),
+                      const SizedBox(height: 22),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text(
+                              'Cancel',
+                              style: TextStyle(color: Color(0xFF6B7280), fontWeight: FontWeight.w600),
                             ),
                           ),
-                          onPressed: () {
-                            final rawTitle = titleController.text.trim();
-                            if (rawTitle.isNotEmpty) {
-                              final newTask = TaskItem(
-                                id: DateTime.now().millisecondsSinceEpoch.toString(),
-                                title: rawTitle,
-                                isCompleted: false,
-                                due: selectedDue,
-                                originalDue: selectedDue,
-                              );
-                              setState(() {
-                                _cachedTasks.insert(0, newTask);
-                              });
-                              _persistTasks();
-                              Navigator.pop(ctx);
-                            }
-                          },
-                          child: const Text(
-                            'Add Task',
-                            style: TextStyle(fontWeight: FontWeight.w600),
+                          const SizedBox(width: 8),
+                          ElevatedButton(
+                            key: const Key('dialog_create_task_button'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _kPrimaryBlue,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            onPressed: () {
+                              final rawTitle = titleController.text.trim();
+                              if (rawTitle.isNotEmpty) {
+                                final newTask = TaskItem(
+                                  id: DateTime.now().millisecondsSinceEpoch.toString(),
+                                  title: rawTitle,
+                                  isCompleted: false,
+                                  due: selectedDue,
+                                  originalDue: selectedDue,
+                                  dueDateTime: selectedDateTime,
+                                  reminderDateTime: selectedDateTime,
+                                );
+                                setState(() {
+                                  _cachedTasks.insert(0, newTask);
+                                });
+                                _persistTasks();
+                                NotificationService.instance.scheduleTaskReminder(newTask);
+                                Navigator.pop(ctx);
+                              }
+                            },
+                            child: const Text(
+                              'Add Task',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -426,6 +575,7 @@ class _TasksScreenState extends State<TasksScreen> {
                       for (final t in _cachedTasks) {
                         t.isCompleted = true;
                         t.due = 'Completed';
+                        NotificationService.instance.cancelTaskReminder(t.id);
                       }
                     });
                     _persistTasks();
@@ -447,6 +597,7 @@ class _TasksScreenState extends State<TasksScreen> {
                   title: const Text('Reset to sample tasks'),
                   onTap: () {
                     Navigator.pop(ctx);
+                    NotificationService.instance.cancelAllTaskReminders();
                     setState(() {
                       resetStaticState();
                     });

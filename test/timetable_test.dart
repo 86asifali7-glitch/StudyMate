@@ -79,4 +79,65 @@ void main() {
 
     expect(find.text('Discrete Mathematics'), findsOneWidget);
   });
+
+  testWidgets('Saved empty timetable displays empty timetable screen with add button',
+      (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues({
+      'timetable_entries_v2': '[]',
+      'studymate_timetable_saved': true,
+    });
+    TimetableScreen.resetForTesting();
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: TimetableScreen(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Default sample classes should NOT appear
+    expect(find.text('Calculus II'), findsNothing);
+    expect(find.text('Physics Mechanics'), findsNothing);
+    // Dedicated empty timetable screen is shown
+    expect(find.text('No classes scheduled yet'), findsOneWidget);
+    expect(find.text('Your timetable is empty. Tap "+ Add Class" to set up your weekly schedule!'), findsOneWidget);
+    expect(find.byKey(const Key('empty_add_class_button')), findsOneWidget);
+  });
+
+  testWidgets('Clear all classes removes all entries across all days and persists empty state',
+      (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues({});
+    TimetableScreen.resetForTesting();
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: TimetableScreen(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Verify Clear All button is present in header
+    expect(find.byKey(const Key('clear_all_header_button')), findsOneWidget);
+
+    // Tap Clear All in header
+    await tester.tap(find.byKey(const Key('clear_all_header_button')));
+    await tester.pumpAndSettle();
+
+    // Verify dialog appears
+    expect(find.text('Clear Timetable?'), findsOneWidget);
+    expect(find.byKey(const Key('confirm_clear_all_button')), findsOneWidget);
+
+    // Confirm Clear All
+    await tester.tap(find.byKey(const Key('confirm_clear_all_button')));
+    await tester.pumpAndSettle();
+
+    // Verify empty state is displayed
+    expect(find.text('No classes scheduled yet'), findsOneWidget);
+    expect(find.text('Calculus II'), findsNothing);
+
+    // Verify shared preferences is updated with empty list
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('timetable_entries_v2'), '[]');
+    expect(prefs.getBool('studymate_timetable_saved'), true);
+  });
 }
