@@ -1,4 +1,4 @@
-package com.example.studymate
+package com.asifshah.studymatee
 
 import io.flutter.embedding.android.FlutterActivity
 
