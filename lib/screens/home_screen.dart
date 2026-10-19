@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -31,6 +32,8 @@ class _HomeScreenState extends State<HomeScreen>
   late AnimationController _fadeCtrl;
   late Animation<double>   _fadeAnim;
   int _noteCount = 3;
+  int _taskCount = 4;
+  int _timetableCount = 3;
 
   @override
   void initState() {
@@ -48,10 +51,30 @@ class _HomeScreenState extends State<HomeScreen>
     try {
       final prefs = await SharedPreferences.getInstance();
       final savedData = prefs.getStringList('studymate_saved_notes');
-      final count = savedData != null ? savedData.length : 3;
-      if (mounted && _noteCount != count) {
+      final noteCount = savedData != null ? savedData.length : 3;
+
+      final savedTasks = prefs.getStringList('studymate_saved_tasks');
+      final taskCount = savedTasks != null ? savedTasks.length : 4;
+
+      final rawTimetable = prefs.getString('timetable_entries_v2');
+      int timetableCount = 3;
+      if (rawTimetable != null) {
+        try {
+          final decoded = jsonDecode(rawTimetable);
+          if (decoded is List) {
+            timetableCount = decoded.length;
+          }
+        } catch (_) {}
+      }
+
+      if (mounted &&
+          (_noteCount != noteCount ||
+              _taskCount != taskCount ||
+              _timetableCount != timetableCount)) {
         setState(() {
-          _noteCount = count;
+          _noteCount = noteCount;
+          _taskCount = taskCount;
+          _timetableCount = timetableCount;
         });
       }
     } catch (_) {}
@@ -123,7 +146,7 @@ class _HomeScreenState extends State<HomeScreen>
                 subtitle: 'Assignments & to-dos',
                 badge: 'Tasks',
                 badgeColor: _kBlueTag,
-                count: '4',
+                count: '$_taskCount',
                 onTap: () => _go(2),
               )),
               SliverToBoxAdapter(child: _buildQuickCard(
@@ -133,7 +156,7 @@ class _HomeScreenState extends State<HomeScreen>
                 subtitle: 'Weekly class schedule',
                 badge: 'Timetable',
                 badgeColor: _kGreenTag,
-                count: '3',
+                count: '$_timetableCount',
                 isLast: true,
                 onTap: () => _go(3),
               )),
@@ -246,9 +269,9 @@ class _HomeScreenState extends State<HomeScreen>
         children: [
           _StatBadge(label: 'Notes',   value: '$_noteCount', color: _kPurpleTag, onTap: () => _go(1)),
           const SizedBox(width: 12),
-          _StatBadge(label: 'Tasks',   value: '4',  color: _kBlueTag,   onTap: () => _go(2)),
+          _StatBadge(label: 'Tasks',   value: '$_taskCount',  color: _kBlueTag,   onTap: () => _go(2)),
           const SizedBox(width: 12),
-          _StatBadge(label: 'Classes', value: '3',  color: _kGreenTag,  onTap: () => _go(3)),
+          _StatBadge(label: 'Classes', value: '$_timetableCount',  color: _kGreenTag,  onTap: () => _go(3)),
         ],
       ),
     );

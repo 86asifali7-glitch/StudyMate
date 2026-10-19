@@ -199,7 +199,7 @@ class _NotesScreenState extends State<NotesScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final savedData = prefs.getStringList('studymate_saved_notes');
-      if (savedData != null && savedData.isNotEmpty) {
+      if (savedData != null) {
         final loaded = savedData
             .map((item) => NoteItem.fromMap(jsonDecode(item) as Map<String, dynamic>))
             .toList();

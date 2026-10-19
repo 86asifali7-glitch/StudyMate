@@ -759,4 +759,25 @@ void main() {
       TextAlign.left,
     );
   });
+
+  testWidgets('Saved empty notes list remains empty and does not revert to sample data',
+      (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues({
+      'studymate_saved_notes': <String>[],
+    });
+    NotesScreen.resetForTesting();
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: NotesScreen(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Default sample notes should NOT appear
+    expect(find.text('Calculus Derivatives & Integrals'), findsNothing);
+    expect(find.text("Newton's Laws of Motion Summary"), findsNothing);
+    // Empty state should be visible
+    expect(find.text('No notes yet'), findsOneWidget);
+  });
 }

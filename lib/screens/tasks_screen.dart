@@ -147,7 +147,7 @@ class _TasksScreenState extends State<TasksScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final savedData = prefs.getStringList(_kPrefsKey);
-      if (savedData != null && savedData.isNotEmpty) {
+      if (savedData != null) {
         final loaded = savedData
             .map((item) => TaskItem.fromMap(jsonDecode(item) as Map<String, dynamic>))
             .toList();

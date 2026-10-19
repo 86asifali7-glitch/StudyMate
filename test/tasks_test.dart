@@ -86,4 +86,25 @@ void main() {
     expect(find.text('Biology Exam Study Guide'), findsOneWidget);
     expect(find.text('Due Friday'), findsWidgets);
   });
+
+  testWidgets('Saved empty tasks list remains empty and does not revert to sample data',
+      (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues({
+      'studymate_saved_tasks': <String>[],
+    });
+    TasksScreen.resetForTesting();
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: TasksScreen(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Default sample tasks should NOT appear
+    expect(find.text('Complete Calculus Problem Set 3'), findsNothing);
+    expect(find.text('Read Physics Chapter 5 Summary'), findsNothing);
+    // Empty state should be visible
+    expect(find.text('No tasks to do'), findsOneWidget);
+  });
 }
