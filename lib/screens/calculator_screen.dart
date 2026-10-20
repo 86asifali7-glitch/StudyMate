@@ -8,7 +8,6 @@ const _kTextHead = Color(0xFF1A1A2E);
 const _kTextBody = Color(0xFF6B7280);
 const _kSkyTag = Color(0xFF0284C7);
 const _kRedTag = Color(0xFFEF4444);
-const _kGreenTag = Color(0xFF059669);
 
 class CalculatorScreen extends StatefulWidget {
   const CalculatorScreen({super.key});
@@ -81,7 +80,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
       _errorMessage = null;
 
       if (_hasEvaluated) {
-        _expression = _result + ' $op ';
+        _expression = '$_result $op ';
         _hasEvaluated = false;
         return;
       }
@@ -97,9 +96,8 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
       final lastChar = trimmed[trimmed.length - 1];
 
       if (_isOperator(lastChar)) {
-        // Replace previous operator
-        _expression =
-            trimmed.substring(0, trimmed.length - 1).trimRight() + ' $op ';
+        final opPrefix = trimmed.substring(0, trimmed.length - 1).trimRight();
+        _expression = '$opPrefix $op ';
       } else {
         _expression += ' $op ';
       }
@@ -119,7 +117,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
         final formatted = _formatNumber(percentVal);
         final prefix =
             _expression.substring(0, _expression.length - lastNumStr.length);
-        _expression = prefix + formatted;
+        _expression = '$prefix$formatted';
         _computeLivePreview();
       }
     });
@@ -482,6 +480,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
               alignment: Alignment.centerRight,
               child: Text(
                 _errorMessage!,
+                key: const ValueKey('calc_error_text'),
                 style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
@@ -495,6 +494,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
               alignment: Alignment.centerRight,
               child: Text(
                 _result,
+                key: const ValueKey('calc_result_text'),
                 style: const TextStyle(
                   fontSize: 44,
                   fontWeight: FontWeight.w800,
@@ -639,6 +639,9 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
           color: bgColor,
           borderRadius: BorderRadius.circular(16),
           child: InkWell(
+            key: label != null
+                ? ValueKey('calc_btn_$label')
+                : (icon != null ? const ValueKey('calc_btn_del') : null),
             borderRadius: BorderRadius.circular(16),
             onTap: onTap,
             child: Container(
