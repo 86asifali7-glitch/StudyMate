@@ -122,7 +122,7 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
 
   bool _isInitialized = false;
-  bool isTestMode = false;
+  bool isTestMode = !kIsWeb && Platform.environment.containsKey('FLUTTER_TEST');
 
   bool get _canUsePlugin => _isInitialized && !isTestMode;
 

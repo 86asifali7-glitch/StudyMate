@@ -1,7 +1,6 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../services/app_data_service.dart';
 import 'notification_settings_screen.dart';
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
@@ -32,11 +31,15 @@ class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _fadeCtrl;
   late Animation<double>   _fadeAnim;
-  int _noteCount = 3;
-  int _taskCount = 4;
-  int _timetableCount = 3;
-  String? _firstTodaySubject;
-  String? _firstTodayTime;
+  int _noteCount = AppDataService.instance.notes.length;
+  int _taskCount = AppDataService.instance.tasks.length;
+  int _timetableCount = AppDataService.instance.todayClassesCount;
+  String? _firstTodaySubject = AppDataService.instance.todayClasses.isNotEmpty
+      ? AppDataService.instance.todayClasses.first.subject
+      : null;
+  String? _firstTodayTime = AppDataService.instance.todayClasses.isNotEmpty
+      ? '${_fmtTime(AppDataService.instance.todayClasses.first.startTime.hour, AppDataService.instance.todayClasses.first.startTime.minute)} – ${_fmtTime(AppDataService.instance.todayClasses.first.endTime.hour, AppDataService.instance.todayClasses.first.endTime.minute)}'
+      : null;
 
   static String _fmtTime(int hour, int minute) {
     final h = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
@@ -48,7 +51,9 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
-    _loadNoteCount();
+    AppDataService.instance.addListener(_syncFromAppData);
+    _syncFromAppData();
+    _loadAppData();
     _fadeCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 480),
@@ -57,114 +62,34 @@ class _HomeScreenState extends State<HomeScreen>
     _fadeCtrl.forward();
   }
 
-  Future<void> _loadNoteCount() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
+  Future<void> _loadAppData() async {
+    await AppDataService.instance.initialize();
+    if (mounted) {
+      _syncFromAppData();
+    }
+  }
 
-      final hasSavedNotes = (prefs.getBool('studymate_notes_saved') ?? false) ||
-          prefs.containsKey('studymate_saved_notes') ||
-          prefs.containsKey('studymate_notes_json');
-      int noteCount = 3;
-      if (hasSavedNotes) {
-        final rawJson = prefs.getString('studymate_notes_json');
-        if (rawJson != null) {
-          try {
-            noteCount = (jsonDecode(rawJson) as List).length;
-          } catch (_) {
-            noteCount = 0;
-          }
-        } else {
-          final savedData = prefs.getStringList('studymate_saved_notes');
-          noteCount = savedData != null ? savedData.length : 0;
-        }
-      } else {
-        final savedData = prefs.getStringList('studymate_saved_notes');
-        noteCount = savedData != null ? savedData.length : 3;
-      }
+  void _syncFromAppData() {
+    final noteCount = AppDataService.instance.notes.length;
+    final taskCount = AppDataService.instance.tasks.length;
+    final todayClasses = AppDataService.instance.todayClasses;
+    final timetableCount = todayClasses.length;
 
-      final hasSavedTasks = (prefs.getBool('studymate_tasks_saved') ?? false) ||
-          prefs.containsKey('studymate_saved_tasks') ||
-          prefs.containsKey('studymate_tasks_json');
-      int taskCount = 4;
-      if (hasSavedTasks) {
-        final rawJson = prefs.getString('studymate_tasks_json');
-        if (rawJson != null) {
-          try {
-            taskCount = (jsonDecode(rawJson) as List).length;
-          } catch (_) {
-            taskCount = 0;
-          }
-        } else {
-          final savedTasks = prefs.getStringList('studymate_saved_tasks');
-          taskCount = savedTasks != null ? savedTasks.length : 0;
-        }
-      } else {
-        final savedTasks = prefs.getStringList('studymate_saved_tasks');
-        taskCount = savedTasks != null ? savedTasks.length : 4;
-      }
+    String? firstTodaySubject;
+    String? firstTodayTime;
+    if (todayClasses.isNotEmpty) {
+      final first = todayClasses.first;
+      firstTodaySubject = first.subject;
+      firstTodayTime =
+          '${_fmtTime(first.startTime.hour, first.startTime.minute)} – ${_fmtTime(first.endTime.hour, first.endTime.minute)}';
+    }
 
-      final hasSavedTimetable =
-          (prefs.getBool('studymate_timetable_saved') ?? false) ||
-              prefs.containsKey('timetable_entries_v2');
-      int timetableCount = 3;
-      String? firstTodaySubject;
-      String? firstTodayTime;
-
-      final now = DateTime.now();
-      final weekday = now.weekday; // 1=Mon, ..., 5=Fri
-      final todayDay = (weekday >= 1 && weekday <= 5)
-          ? const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'][weekday - 1]
-          : null;
-
-      if (hasSavedTimetable) {
-        final rawTimetable = prefs.getString('timetable_entries_v2');
-        if (rawTimetable != null) {
-          try {
-            final decoded = jsonDecode(rawTimetable);
-            if (decoded is List) {
-              if (todayDay != null) {
-                final todayEntries = decoded.where((e) {
-                  if (e is Map) {
-                    final d = e['day']?.toString();
-                    return d?.toLowerCase() == todayDay.toLowerCase();
-                  }
-                  return false;
-                }).toList();
-
-                timetableCount = todayEntries.length;
-                if (todayEntries.isNotEmpty) {
-                  final first = todayEntries.first as Map;
-                  firstTodaySubject = first['subject']?.toString();
-                  final sH = first['startHour'] as int? ?? 9;
-                  final sM = first['startMinute'] as int? ?? 0;
-                  final eH = first['endHour'] as int? ?? 10;
-                  final eM = first['endMinute'] as int? ?? 30;
-                  firstTodayTime = '${_fmtTime(sH, sM)} – ${_fmtTime(eH, eM)}';
-                }
-              } else {
-                timetableCount = 0;
-              }
-            }
-          } catch (_) {
-            timetableCount = 0;
-          }
-        } else {
-          timetableCount = 0;
-        }
-      } else {
-        timetableCount = (weekday >= 1 && weekday <= 5) ? 3 : 0;
-        if (timetableCount > 0) {
-          firstTodaySubject = 'Calculus II';
-          firstTodayTime = '09:00 AM • Room 204';
-        }
-      }
-
-      if (mounted &&
-          (_noteCount != noteCount ||
-              _taskCount != taskCount ||
-              _timetableCount != timetableCount ||
-              _firstTodaySubject != firstTodaySubject ||
-              _firstTodayTime != firstTodayTime)) {
+    if (mounted) {
+      if (_noteCount != noteCount ||
+          _taskCount != taskCount ||
+          _timetableCount != timetableCount ||
+          _firstTodaySubject != firstTodaySubject ||
+          _firstTodayTime != firstTodayTime) {
         setState(() {
           _noteCount = noteCount;
           _taskCount = taskCount;
@@ -173,11 +98,18 @@ class _HomeScreenState extends State<HomeScreen>
           _firstTodayTime = firstTodayTime;
         });
       }
-    } catch (_) {}
+    } else {
+      _noteCount = noteCount;
+      _taskCount = taskCount;
+      _timetableCount = timetableCount;
+      _firstTodaySubject = firstTodaySubject;
+      _firstTodayTime = firstTodayTime;
+    }
   }
 
   @override
   void dispose() {
+    AppDataService.instance.removeListener(_syncFromAppData);
     _fadeCtrl.dispose();
     super.dispose();
   }
@@ -201,13 +133,13 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _go(int i) {
     widget.onNavigate?.call(i);
-    _loadNoteCount();
+    _syncFromAppData();
   }
 
   @override
   Widget build(BuildContext context) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _loadNoteCount();
+      if (mounted) _syncFromAppData();
     });
     SystemChrome.setSystemUIOverlayStyle(
       SystemUiOverlayStyle.dark.copyWith(statusBarColor: Colors.transparent),
@@ -521,7 +453,7 @@ class _HeroCard extends StatelessWidget {
                 const SizedBox(height: 10),
                 Text(
                   hasClasses
-                      ? (classSubject ?? 'Calculus II')
+                      ? (classSubject ?? 'Class')
                       : 'No Classes Scheduled',
                   style: const TextStyle(
                     fontSize: 20,
@@ -533,7 +465,7 @@ class _HeroCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   hasClasses
-                      ? (classTime ?? '09:00 AM • Room 204')
+                      ? (classTime ?? 'Scheduled today')
                       : 'Your schedule is clear • Enjoy your day!',
                   style: const TextStyle(
                     fontSize: 13,

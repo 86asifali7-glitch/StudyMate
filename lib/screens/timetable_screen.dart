@@ -1,6 +1,5 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../services/app_data_service.dart';
 import '../services/notification_service.dart';
 
 // ─── Design Tokens matching reference image ─────────────────────────────────
@@ -90,75 +89,7 @@ class TimetableEntry {
   }
 }
 
-// ─── Default Sample Data matching reference image ────────────────────────────
-List<TimetableEntry> _defaultEntries() => [
-      TimetableEntry(
-        id: '1',
-        subject: 'Calculus II',
-        day: 'Mon',
-        startTime: const TimeOfDay(hour: 9, minute: 0),
-        endTime: const TimeOfDay(hour: 10, minute: 30),
-      ),
-      TimetableEntry(
-        id: '2',
-        subject: 'Physics Mechanics',
-        day: 'Mon',
-        startTime: const TimeOfDay(hour: 11, minute: 0),
-        endTime: const TimeOfDay(hour: 12, minute: 30),
-      ),
-      TimetableEntry(
-        id: '3',
-        subject: 'Computer Architecture',
-        day: 'Mon',
-        startTime: const TimeOfDay(hour: 14, minute: 0),
-        endTime: const TimeOfDay(hour: 15, minute: 30),
-      ),
-      TimetableEntry(
-        id: '4',
-        subject: 'Data Structures',
-        day: 'Tue',
-        startTime: const TimeOfDay(hour: 10, minute: 0),
-        endTime: const TimeOfDay(hour: 11, minute: 30),
-      ),
-      TimetableEntry(
-        id: '5',
-        subject: 'Technical Writing',
-        day: 'Tue',
-        startTime: const TimeOfDay(hour: 13, minute: 0),
-        endTime: const TimeOfDay(hour: 14, minute: 30),
-      ),
-      TimetableEntry(
-        id: '6',
-        subject: 'Calculus II',
-        day: 'Wed',
-        startTime: const TimeOfDay(hour: 9, minute: 0),
-        endTime: const TimeOfDay(hour: 10, minute: 30),
-      ),
-      TimetableEntry(
-        id: '7',
-        subject: 'Physics Lab',
-        day: 'Wed',
-        startTime: const TimeOfDay(hour: 13, minute: 0),
-        endTime: const TimeOfDay(hour: 15, minute: 0),
-      ),
-      TimetableEntry(
-        id: '8',
-        subject: 'Linear Algebra',
-        day: 'Thu',
-        startTime: const TimeOfDay(hour: 14, minute: 0),
-        endTime: const TimeOfDay(hour: 15, minute: 30),
-      ),
-      TimetableEntry(
-        id: '9',
-        subject: 'Computer Architecture',
-        day: 'Fri',
-        startTime: const TimeOfDay(hour: 9, minute: 30),
-        endTime: const TimeOfDay(hour: 11, minute: 0),
-      ),
-    ];
-
 const _days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-const _kPrefsKey = 'timetable_entries_v2';
 
 class TimetableScreen extends StatefulWidget {
   const TimetableScreen({super.key});
@@ -173,12 +104,11 @@ class TimetableScreen extends StatefulWidget {
 }
 
 class _TimetableScreenState extends State<TimetableScreen> {
-  static List<TimetableEntry> _cachedEntries = _defaultEntries();
-  static bool _hasLoaded = false;
+  static List<TimetableEntry> _cachedEntries = List.from(AppDataService.instance.timetableEntries);
 
   static void resetStaticState() {
-    _hasLoaded = false;
-    _cachedEntries = _defaultEntries();
+    AppDataService.instance.resetForTesting();
+    _cachedEntries = [];
   }
 
   int _selectedDayIndex = 0;
@@ -186,53 +116,41 @@ class _TimetableScreenState extends State<TimetableScreen> {
   @override
   void initState() {
     super.initState();
-    if (!_hasLoaded) {
+    AppDataService.instance.addListener(_onAppDataChanged);
+    _cachedEntries = List.from(AppDataService.instance.timetableEntries);
+    if (!AppDataService.instance.isInitialized) {
       _loadEntries();
     }
   }
 
+  void _onAppDataChanged() {
+    if (!mounted) return;
+    setState(() {
+      _cachedEntries = List.from(AppDataService.instance.timetableEntries);
+    });
+  }
+
+  @override
+  void dispose() {
+    AppDataService.instance.removeListener(_onAppDataChanged);
+    super.dispose();
+  }
+
   Future<void> _loadEntries() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final hasSaved = (prefs.getBool('studymate_timetable_saved') ?? false) ||
-          prefs.containsKey(_kPrefsKey);
-      if (hasSaved) {
-        final raw = prefs.getString(_kPrefsKey);
-        List<TimetableEntry> loaded = [];
-        if (raw != null) {
-          try {
-            final List decoded = jsonDecode(raw) as List;
-            loaded = decoded
-                .map((e) => TimetableEntry.fromJson(e as Map<String, dynamic>))
-                .toList();
-          } catch (_) {}
-        }
-        if (mounted) {
-          setState(() {
-            _cachedEntries = loaded;
-            _hasLoaded = true;
-          });
-        } else {
-          _cachedEntries = loaded;
-          _hasLoaded = true;
-        }
+      await AppDataService.instance.initialize();
+      if (mounted) {
+        setState(() {
+          _cachedEntries = List<TimetableEntry>.from(AppDataService.instance.timetableEntries);
+        });
       } else {
-        _hasLoaded = true;
+        _cachedEntries = List<TimetableEntry>.from(AppDataService.instance.timetableEntries);
       }
-    } catch (_) {
-      _hasLoaded = true;
-    }
+    } catch (_) {}
   }
 
   Future<void> _persist() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-        _kPrefsKey,
-        jsonEncode(_cachedEntries.map((e) => e.toJson()).toList()),
-      );
-      await prefs.setBool('studymate_timetable_saved', true);
-    } catch (_) {}
+    await AppDataService.instance.saveTimetable(_cachedEntries);
   }
 
   List<TimetableEntry> _entriesForSelectedDay() {
@@ -246,33 +164,34 @@ class _TimetableScreenState extends State<TimetableScreen> {
     return list;
   }
 
-  void _addEntry(TimetableEntry entry) {
+  Future<void> _addEntry(TimetableEntry entry) async {
     setState(() {
       _cachedEntries.add(entry);
     });
-    _persist();
+    await _persist();
     NotificationService.instance.scheduleClassReminder(entry);
   }
 
-  void _updateEntry(TimetableEntry updated) {
+  Future<void> _updateEntry(TimetableEntry updated) async {
     setState(() {
       final idx = _cachedEntries.indexWhere((e) => e.id == updated.id);
       if (idx != -1) _cachedEntries[idx] = updated;
     });
-    _persist();
+    await _persist();
     NotificationService.instance.scheduleClassReminder(updated);
   }
 
-  void _deleteEntry(TimetableEntry entry) {
+  Future<void> _deleteEntry(TimetableEntry entry) async {
     final deletedIndex = _cachedEntries.indexWhere((e) => e.id == entry.id);
     if (deletedIndex == -1) return;
 
     setState(() {
       _cachedEntries.removeAt(deletedIndex);
     });
-    _persist();
+    await _persist();
     NotificationService.instance.cancelClassReminder(entry.id);
 
+    if (!mounted) return;
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -282,11 +201,11 @@ class _TimetableScreenState extends State<TimetableScreen> {
         action: SnackBarAction(
           label: 'Undo',
           textColor: const Color(0xFF8298FF),
-          onPressed: () {
+          onPressed: () async {
             setState(() {
               _cachedEntries.insert(deletedIndex, entry);
             });
-            _persist();
+            await _persist();
             NotificationService.instance.scheduleClassReminder(entry);
           },
         ),
@@ -333,8 +252,9 @@ class _TimetableScreenState extends State<TimetableScreen> {
       setState(() {
         _cachedEntries.clear();
       });
-      _persist();
+      await _persist();
       NotificationService.instance.cancelAllClassReminders();
+      if (!mounted) return;
       ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -580,7 +500,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          onPressed: () {
+                          onPressed: () async {
                             final rawSubject = subjectCtrl.text.trim();
                             if (rawSubject.isEmpty) return;
 
@@ -594,9 +514,9 @@ class _TimetableScreenState extends State<TimetableScreen> {
 
                             Navigator.pop(ctx);
                             if (isEdit) {
-                              _updateEntry(entry);
+                              await _updateEntry(entry);
                             } else {
-                              _addEntry(entry);
+                              await _addEntry(entry);
                               final targetIndex = _days.indexOf(selectedDay);
                               if (targetIndex != -1) {
                                 setState(() => _selectedDayIndex = targetIndex);

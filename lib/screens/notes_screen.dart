@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../services/app_data_service.dart';
 
 // ── Notes screen design tokens (matching reference image) ────────────────────
 const _kNBg       = Color(0xFFF7F8FD); // light lavender-white background
@@ -115,64 +115,12 @@ class NotesScreen extends StatefulWidget {
 }
 
 class _NotesScreenState extends State<NotesScreen> {
-  // Static cache preserves note content across screen navigations in memory
-  static List<NoteItem> _cachedNotes = [
-    const NoteItem(
-      id: '1',
-      title: 'Calculus Derivatives & Integrals',
-      subject: 'Mathematics',
-      content:
-          'Key formulas:\n• d/dx [x^n] = n*x^(n-1)\n• d/dx [sin(x)] = cos(x)\n• d/dx [cos(x)] = -sin(x)\n• d/dx [e^x] = e^x\n\nIntegration by parts:\n∫ u dv = uv - ∫ v du\n\nPractice exercises on page 142 before Thursday tutorial.',
-      date: 'Oct 10, 2026',
-    ),
-    const NoteItem(
-      id: '2',
-      title: "Newton's Laws of Motion Summary",
-      subject: 'Physics',
-      content:
-          'Core principles of classical mechanics:\n1. First Law (Inertia): An object remains at rest or in uniform motion unless acted upon by a net external force.\n2. Second Law (F = ma): Force equals mass times acceleration.\n3. Third Law (Action & Reaction): Every action has an equal and opposite reaction.\n\nKey equations: F = m*a, p = m*v, W = F*d.',
-      date: 'Oct 9, 2026',
-    ),
-    const NoteItem(
-      id: '3',
-      title: 'Organic Chemistry Reactions',
-      subject: 'Chemistry',
-      content:
-          'Mechanisms overview:\n• SN1: Two-step, carbocation intermediate, racemization.\n• SN2: One-step backside displacement with inversion of configuration.\n• E1 & E2 elimination competition factors.\n• Markovnikov vs Anti-Markovnikov addition.\n\nReview synthesis questions for exam revision.',
-      date: 'Oct 7, 2026',
-    ),
-  ];
-
-  static bool _hasLoadedFromStorage = false;
+  // In-memory cache synced with AppDataService
+  static List<NoteItem> _cachedNotes = List.from(AppDataService.instance.notes);
 
   static void resetStaticState() {
-    _hasLoadedFromStorage = false;
-    _cachedNotes = [
-      const NoteItem(
-        id: '1',
-        title: 'Calculus Derivatives & Integrals',
-        subject: 'Mathematics',
-        content:
-            'Key formulas:\n• d/dx [x^n] = n*x^(n-1)\n• d/dx [sin(x)] = cos(x)\n• d/dx [cos(x)] = -sin(x)\n• d/dx [e^x] = e^x\n\nIntegration by parts:\n∫ u dv = uv - ∫ v du\n\nPractice exercises on page 142 before Thursday tutorial.',
-        date: 'Oct 10, 2026',
-      ),
-      const NoteItem(
-        id: '2',
-        title: "Newton's Laws of Motion Summary",
-        subject: 'Physics',
-        content:
-            'Core principles of classical mechanics:\n1. First Law (Inertia): An object remains at rest or in uniform motion unless acted upon by a net external force.\n2. Second Law (F = ma): Force equals mass times acceleration.\n3. Third Law (Action & Reaction): Every action has an equal and opposite reaction.\n\nKey equations: F = m*a, p = m*v, W = F*d.',
-        date: 'Oct 9, 2026',
-      ),
-      const NoteItem(
-        id: '3',
-        title: 'Organic Chemistry Reactions',
-        subject: 'Chemistry',
-        content:
-            'Mechanisms overview:\n• SN1: Two-step, carbocation intermediate, racemization.\n• SN2: One-step backside displacement with inversion of configuration.\n• E1 & E2 elimination competition factors.\n• Markovnikov vs Anti-Markovnikov addition.\n\nReview synthesis questions for exam revision.',
-        date: 'Oct 7, 2026',
-      ),
-    ];
+    AppDataService.instance.resetForTesting();
+    _cachedNotes = [];
   }
 
   late TextEditingController _searchController;
@@ -183,9 +131,18 @@ class _NotesScreenState extends State<NotesScreen> {
     super.initState();
     _searchController = TextEditingController();
     _searchFocusNode = FocusNode();
-    if (!_hasLoadedFromStorage) {
+    AppDataService.instance.addListener(_onAppDataChanged);
+    _cachedNotes = List.from(AppDataService.instance.notes);
+    if (!AppDataService.instance.isInitialized) {
       _loadNotesFromStorage();
     }
+  }
+
+  void _onAppDataChanged() {
+    if (!mounted) return;
+    setState(() {
+      _cachedNotes = List.from(AppDataService.instance.notes);
+    });
   }
 
   @override
@@ -198,6 +155,7 @@ class _NotesScreenState extends State<NotesScreen> {
 
   @override
   void dispose() {
+    AppDataService.instance.removeListener(_onAppDataChanged);
     _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
@@ -205,58 +163,19 @@ class _NotesScreenState extends State<NotesScreen> {
 
   Future<void> _loadNotesFromStorage() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final hasSaved = (prefs.getBool('studymate_notes_saved') ?? false) ||
-          prefs.containsKey('studymate_saved_notes') ||
-          prefs.containsKey('studymate_notes_json');
-      if (hasSaved) {
-        final rawJson = prefs.getString('studymate_notes_json');
-        List<NoteItem> loaded = [];
-        if (rawJson != null) {
-          try {
-            final List decoded = jsonDecode(rawJson) as List;
-            loaded = decoded
-                .map((item) => NoteItem.fromMap(item as Map<String, dynamic>))
-                .toList();
-          } catch (_) {}
-        } else {
-          final legacyData = prefs.getStringList('studymate_saved_notes');
-          if (legacyData != null) {
-            loaded = legacyData
-                .map((item) =>
-                    NoteItem.fromMap(jsonDecode(item) as Map<String, dynamic>))
-                .toList();
-          }
-        }
-        if (mounted) {
-          setState(() {
-            _cachedNotes = loaded;
-            _hasLoadedFromStorage = true;
-          });
-        } else {
-          _cachedNotes = loaded;
-          _hasLoadedFromStorage = true;
-        }
+      await AppDataService.instance.initialize();
+      if (mounted) {
+        setState(() {
+          _cachedNotes = List<NoteItem>.from(AppDataService.instance.notes);
+        });
       } else {
-        _hasLoadedFromStorage = true;
+        _cachedNotes = List<NoteItem>.from(AppDataService.instance.notes);
       }
-    } catch (_) {
-      _hasLoadedFromStorage = true;
-    }
+    } catch (_) {}
   }
 
   Future<void> _persistNotes() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final jsonList =
-          _cachedNotes.map((note) => jsonEncode(note.toMap())).toList();
-      await prefs.setStringList('studymate_saved_notes', jsonList);
-      await prefs.setString(
-        'studymate_notes_json',
-        jsonEncode(_cachedNotes.map((n) => n.toMap()).toList()),
-      );
-      await prefs.setBool('studymate_notes_saved', true);
-    } catch (_) {}
+    await AppDataService.instance.saveNotes(_cachedNotes);
   }
 
   // ── search query ─────────────────────────────────────────────────────────
@@ -455,11 +374,12 @@ class _NotesScreenState extends State<NotesScreen> {
     }
   }
 
-  void _deleteNote(String id) {
+  Future<void> _deleteNote(String id) async {
     setState(() {
       _cachedNotes.removeWhere((n) => n.id == id);
     });
-    _persistNotes();
+    await _persistNotes();
+    if (!mounted) return;
     try {
       ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(

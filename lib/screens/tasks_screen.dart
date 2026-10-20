@@ -1,6 +1,5 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../services/app_data_service.dart';
 import '../services/notification_service.dart';
 
 // ─── Design Tokens matching reference image ─────────────────────────────────
@@ -84,74 +83,11 @@ class TasksScreen extends StatefulWidget {
 }
 
 class _TasksScreenState extends State<TasksScreen> {
-  static const String _kPrefsKey = 'studymate_saved_tasks';
-
-  static final List<TaskItem> _defaultTasks = [
-    TaskItem(
-      id: '1',
-      title: 'Complete Calculus Problem Set 3',
-      isCompleted: false,
-      due: 'Due Tomorrow',
-      originalDue: 'Due Tomorrow',
-    ),
-    TaskItem(
-      id: '2',
-      title: 'Read Physics Chapter 5 Summary',
-      isCompleted: true,
-      due: 'Completed',
-      originalDue: 'Due Today',
-    ),
-    TaskItem(
-      id: '3',
-      title: 'Submit Chemistry Lab Report',
-      isCompleted: false,
-      due: 'Due Friday',
-      originalDue: 'Due Friday',
-    ),
-    TaskItem(
-      id: '4',
-      title: 'Prepare Flashcards for History',
-      isCompleted: false,
-      due: 'Due Sunday',
-      originalDue: 'Due Sunday',
-    ),
-  ];
-
-  static List<TaskItem> _cachedTasks = List.from(_defaultTasks);
-  static bool _hasLoadedFromStorage = false;
+  static List<TaskItem> _cachedTasks = List.from(AppDataService.instance.tasks);
 
   static void resetStaticState() {
-    _hasLoadedFromStorage = false;
-    _cachedTasks = [
-      TaskItem(
-        id: '1',
-        title: 'Complete Calculus Problem Set 3',
-        isCompleted: false,
-        due: 'Due Tomorrow',
-        originalDue: 'Due Tomorrow',
-      ),
-      TaskItem(
-        id: '2',
-        title: 'Read Physics Chapter 5 Summary',
-        isCompleted: true,
-        due: 'Completed',
-        originalDue: 'Due Today',
-      ),
-      TaskItem(
-        id: '3',
-        title: 'Submit Chemistry Lab Report',
-        isCompleted: false,
-        due: 'Due Friday',
-        originalDue: 'Due Friday',
-      ),
-      TaskItem(
-        id: '4',
-        title: 'Prepare Flashcards for History',
-        isCompleted: false,
-        due: 'Due Sunday',
-        originalDue: 'Due Sunday',
-      ),
-    ];
+    AppDataService.instance.resetForTesting();
+    _cachedTasks = [];
   }
 
   // 0: All Tasks, 1: Completed
@@ -160,64 +96,41 @@ class _TasksScreenState extends State<TasksScreen> {
   @override
   void initState() {
     super.initState();
-    if (!_hasLoadedFromStorage) {
+    AppDataService.instance.addListener(_onAppDataChanged);
+    _cachedTasks = List.from(AppDataService.instance.tasks);
+    if (!AppDataService.instance.isInitialized) {
       _loadTasksFromStorage();
     }
   }
 
+  void _onAppDataChanged() {
+    if (!mounted) return;
+    setState(() {
+      _cachedTasks = List.from(AppDataService.instance.tasks);
+    });
+  }
+
+  @override
+  void dispose() {
+    AppDataService.instance.removeListener(_onAppDataChanged);
+    super.dispose();
+  }
+
   Future<void> _loadTasksFromStorage() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final hasSaved = (prefs.getBool('studymate_tasks_saved') ?? false) ||
-          prefs.containsKey(_kPrefsKey) ||
-          prefs.containsKey('studymate_tasks_json');
-      if (hasSaved) {
-        final rawJson = prefs.getString('studymate_tasks_json');
-        List<TaskItem> loaded = [];
-        if (rawJson != null) {
-          try {
-            final List decoded = jsonDecode(rawJson) as List;
-            loaded = decoded
-                .map((item) => TaskItem.fromMap(item as Map<String, dynamic>))
-                .toList();
-          } catch (_) {}
-        } else {
-          final legacyData = prefs.getStringList(_kPrefsKey);
-          if (legacyData != null) {
-            loaded = legacyData
-                .map((item) =>
-                    TaskItem.fromMap(jsonDecode(item) as Map<String, dynamic>))
-                .toList();
-          }
-        }
-        if (mounted) {
-          setState(() {
-            _cachedTasks = loaded;
-            _hasLoadedFromStorage = true;
-          });
-        } else {
-          _cachedTasks = loaded;
-          _hasLoadedFromStorage = true;
-        }
+      await AppDataService.instance.initialize();
+      if (mounted) {
+        setState(() {
+          _cachedTasks = List<TaskItem>.from(AppDataService.instance.tasks);
+        });
       } else {
-        _hasLoadedFromStorage = true;
+        _cachedTasks = List<TaskItem>.from(AppDataService.instance.tasks);
       }
-    } catch (_) {
-      _hasLoadedFromStorage = true;
-    }
+    } catch (_) {}
   }
 
   Future<void> _persistTasks() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final jsonList = _cachedTasks.map((t) => jsonEncode(t.toMap())).toList();
-      await prefs.setStringList(_kPrefsKey, jsonList);
-      await prefs.setString(
-        'studymate_tasks_json',
-        jsonEncode(_cachedTasks.map((t) => t.toMap()).toList()),
-      );
-      await prefs.setBool('studymate_tasks_saved', true);
-    } catch (_) {}
+    await AppDataService.instance.saveTasks(_cachedTasks);
   }
 
   List<TaskItem> get _displayedTasks {
@@ -227,7 +140,7 @@ class _TasksScreenState extends State<TasksScreen> {
     return _cachedTasks;
   }
 
-  void _toggleTaskCompletion(TaskItem task) {
+  Future<void> _toggleTaskCompletion(TaskItem task) async {
     setState(() {
       task.isCompleted = !task.isCompleted;
       if (task.isCompleted) {
@@ -236,7 +149,7 @@ class _TasksScreenState extends State<TasksScreen> {
         task.due = task.originalDue.isNotEmpty ? task.originalDue : 'Pending';
       }
     });
-    _persistTasks();
+    await _persistTasks();
     if (task.isCompleted) {
       NotificationService.instance.cancelTaskReminder(task.id);
     } else {
@@ -244,16 +157,17 @@ class _TasksScreenState extends State<TasksScreen> {
     }
   }
 
-  void _deleteTask(TaskItem task) {
+  Future<void> _deleteTask(TaskItem task) async {
     final deletedIndex = _cachedTasks.indexWhere((t) => t.id == task.id);
     if (deletedIndex == -1) return;
 
     setState(() {
       _cachedTasks.removeAt(deletedIndex);
     });
-    _persistTasks();
+    await _persistTasks();
     NotificationService.instance.cancelTaskReminder(task.id);
 
+    if (!mounted) return;
     ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -263,11 +177,11 @@ class _TasksScreenState extends State<TasksScreen> {
         action: SnackBarAction(
           label: 'Undo',
           textColor: const Color(0xFF8298FF),
-          onPressed: () {
+          onPressed: () async {
             setState(() {
               _cachedTasks.insert(deletedIndex, task);
             });
-            _persistTasks();
+            await _persistTasks();
             if (!task.isCompleted) {
               NotificationService.instance.scheduleTaskReminder(task);
             }
@@ -505,7 +419,7 @@ class _TasksScreenState extends State<TasksScreen> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                            onPressed: () {
+                            onPressed: () async {
                               final rawTitle = titleController.text.trim();
                               if (rawTitle.isNotEmpty) {
                                 final newTask = TaskItem(
@@ -520,9 +434,11 @@ class _TasksScreenState extends State<TasksScreen> {
                                 setState(() {
                                   _cachedTasks.insert(0, newTask);
                                 });
-                                _persistTasks();
+                                await _persistTasks();
                                 NotificationService.instance.scheduleTaskReminder(newTask);
-                                Navigator.pop(ctx);
+                                if (ctx.mounted) {
+                                  Navigator.pop(ctx);
+                                }
                               }
                             },
                             child: const Text(
@@ -569,7 +485,7 @@ class _TasksScreenState extends State<TasksScreen> {
                 ListTile(
                   leading: const Icon(Icons.done_all_rounded, color: _kPrimaryBlue),
                   title: const Text('Mark all as completed'),
-                  onTap: () {
+                  onTap: () async {
                     Navigator.pop(ctx);
                     setState(() {
                       for (final t in _cachedTasks) {
@@ -578,30 +494,30 @@ class _TasksScreenState extends State<TasksScreen> {
                         NotificationService.instance.cancelTaskReminder(t.id);
                       }
                     });
-                    _persistTasks();
+                    await _persistTasks();
                   },
                 ),
                 ListTile(
                   leading: const Icon(Icons.cleaning_services_rounded, color: Color(0xFFE56969)),
                   title: const Text('Clear completed tasks'),
-                  onTap: () {
+                  onTap: () async {
                     Navigator.pop(ctx);
                     setState(() {
                       _cachedTasks.removeWhere((t) => t.isCompleted);
                     });
-                    _persistTasks();
+                    await _persistTasks();
                   },
                 ),
                 ListTile(
                   leading: const Icon(Icons.restore_rounded, color: Color(0xFF4B5565)),
                   title: const Text('Reset to sample tasks'),
-                  onTap: () {
+                  onTap: () async {
                     Navigator.pop(ctx);
                     NotificationService.instance.cancelAllTaskReminders();
                     setState(() {
-                      resetStaticState();
+                      _cachedTasks = AppDataService.defaultTasks();
                     });
-                    _persistTasks();
+                    await _persistTasks();
                   },
                 ),
               ],
