@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/app_data_service.dart';
 import 'notification_settings_screen.dart';
+import 'clock_screen.dart';
+import 'calculator_screen.dart';
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 // Inspired by the reference screenshot's lavender + white card + purple-accent style.
@@ -15,6 +17,8 @@ const _kTextBody    = Color(0xFF6B7280); // muted body text
 const _kPurpleTag   = Color(0xFF7C3AED); // purple pill badge
 const _kBlueTag     = Color(0xFF3B82F6); // blue pill badge
 const _kGreenTag    = Color(0xFF059669); // green pill badge
+const _kAmberTag    = Color(0xFFF59E0B); // amber pill badge
+const _kSkyTag      = Color(0xFF0284C7); // sky blue pill badge
 
 // ─── Screen ────────────────────────────────────────────────────────────────────
 
@@ -185,8 +189,44 @@ class _HomeScreenState extends State<HomeScreen>
                 badge: 'Timetable',
                 badgeColor: _kGreenTag,
                 count: '$_timetableCount',
-                isLast: true,
+                isLast: false,
                 onTap: () => _go(3),
+              )),
+              SliverToBoxAdapter(child: _buildQuickCard(
+                icon: Icons.access_time_rounded,
+                iconBg: _kAmberTag,
+                title: 'Clock',
+                subtitle: 'Digital clock, stopwatch & timer',
+                badge: 'Clock',
+                badgeColor: _kAmberTag,
+                trailingLabel: 'Tool',
+                isLast: false,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ClockScreen(),
+                    ),
+                  );
+                },
+              )),
+              SliverToBoxAdapter(child: _buildQuickCard(
+                icon: Icons.calculate_rounded,
+                iconBg: _kSkyTag,
+                title: 'Calculator',
+                subtitle: 'Mini study & quick calculations',
+                badge: 'Calculator',
+                badgeColor: _kSkyTag,
+                trailingLabel: 'Tool',
+                isLast: true,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const CalculatorScreen(),
+                    ),
+                  );
+                },
               )),
               const SliverToBoxAdapter(child: SizedBox(height: 36)),
             ],
@@ -343,7 +383,8 @@ class _HomeScreenState extends State<HomeScreen>
     required String subtitle,
     required String badge,
     required Color badgeColor,
-    required String count,
+    String? count,
+    String? trailingLabel,
     required VoidCallback onTap,
     bool isLast = false,
   }) {
@@ -357,6 +398,7 @@ class _HomeScreenState extends State<HomeScreen>
         badge: badge,
         badgeColor: badgeColor,
         count: count,
+        trailingLabel: trailingLabel,
         onTap: onTap,
       ),
     );
@@ -585,7 +627,8 @@ class _QuickCard extends StatelessWidget {
   final String subtitle;
   final String badge;
   final Color badgeColor;
-  final String count;
+  final String? count;
+  final String? trailingLabel;
   final VoidCallback onTap;
 
   const _QuickCard({
@@ -595,7 +638,8 @@ class _QuickCard extends StatelessWidget {
     required this.subtitle,
     required this.badge,
     required this.badgeColor,
-    required this.count,
+    this.count,
+    this.trailingLabel,
     required this.onTap,
   });
 
@@ -666,14 +710,17 @@ class _QuickCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 10),
-                // Right: pill badge + count
+                // Right: pill badge + count / trailing
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     _PillBadge(label: badge, color: badgeColor),
                     const SizedBox(height: 4),
                     Text(
-                      '$count ${count == '1' ? 'item' : 'items'}',
+                      trailingLabel ??
+                          (count != null
+                              ? '$count ${count == '1' ? 'item' : 'items'}'
+                              : ''),
                       style: const TextStyle(
                         fontSize: 11,
                         color: _kTextBody,
