@@ -8,12 +8,14 @@ import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import '../screens/timetable_screen.dart';
 import '../screens/tasks_screen.dart';
+import 'sound_service.dart';
 
 enum AlarmTone {
   urgent(
     key: 'urgent',
-    label: 'Urgent Alarm',
-    subtitle: 'Loud alarm with strong triple buzz',
+    label: 'Mobile Ringtone',
+    subtitle: 'Ringtone 542 with urgent buzz',
+    soundAsset: 'sounds/alam/soundreality-mobile-ringtone-542006.mp3',
     channelId: 'studymate_channel_urgent',
     channelName: 'StudyMate Urgent Alarms',
     importance: Importance.max,
@@ -25,8 +27,9 @@ enum AlarmTone {
   ),
   classic(
     key: 'classic',
-    label: 'Classic Chime',
-    subtitle: 'Standard tone with double buzz',
+    label: 'Classic Ringtone (023)',
+    subtitle: 'Ringtone 023 with double buzz',
+    soundAsset: 'sounds/alam/universfield-ringtone-023-376906.mp3',
     channelId: 'studymate_channel_classic',
     channelName: 'StudyMate Classic Chimes',
     importance: Importance.max,
@@ -36,10 +39,25 @@ enum AlarmTone {
     playSound: true,
     vibrationPattern: [0, 500, 250, 500],
   ),
+  energetic(
+    key: 'energetic',
+    label: 'Energetic Tone (030)',
+    subtitle: 'Ringtone 030 with upbeat rhythm',
+    soundAsset: 'sounds/alam/universfield-ringtone-030-437513.mp3',
+    channelId: 'studymate_channel_energetic',
+    channelName: 'StudyMate Energetic Alarms',
+    importance: Importance.max,
+    priority: Priority.high,
+    audioUsage: AudioAttributesUsage.alarm,
+    category: AndroidNotificationCategory.alarm,
+    playSound: true,
+    vibrationPattern: [0, 400, 200, 400, 200, 400],
+  ),
   gentle(
     key: 'gentle',
-    label: 'Gentle Pulse',
-    subtitle: 'Soft chime with gentle buzz',
+    label: 'Gentle Pulse (088)',
+    subtitle: 'Ringtone 088 with gentle buzz',
+    soundAsset: 'sounds/alam/universfield-ringtone-088-496414.mp3',
     channelId: 'studymate_channel_gentle',
     channelName: 'StudyMate Gentle Reminders',
     importance: Importance.high,
@@ -53,6 +71,7 @@ enum AlarmTone {
     key: 'vibrate',
     label: 'Vibrate Only',
     subtitle: 'Silent alert with long vibration',
+    soundAsset: null,
     channelId: 'studymate_channel_vibrate',
     channelName: 'StudyMate Vibrate Only',
     importance: Importance.high,
@@ -66,6 +85,7 @@ enum AlarmTone {
   final String key;
   final String label;
   final String subtitle;
+  final String? soundAsset;
   final String channelId;
   final String channelName;
   final Importance importance;
@@ -79,6 +99,7 @@ enum AlarmTone {
     required this.key,
     required this.label,
     required this.subtitle,
+    required this.soundAsset,
     required this.channelId,
     required this.channelName,
     required this.importance,
@@ -142,6 +163,10 @@ class NotificationService {
     classReminderLeadMinutes = 10;
     taskRemindersEnabled = true;
     selectedAlarmTone = AlarmTone.urgent;
+    notificationSoundEnabled = true;
+    taskDoneSoundEnabled = true;
+    alarmSoundEnabled = true;
+    SoundService.instance.resetForTesting();
     _ensureTimeZone();
   }
 
@@ -150,11 +175,17 @@ class NotificationService {
   int classReminderLeadMinutes = 10;
   bool taskRemindersEnabled = true;
   AlarmTone selectedAlarmTone = AlarmTone.urgent;
+  bool notificationSoundEnabled = true;
+  bool taskDoneSoundEnabled = true;
+  bool alarmSoundEnabled = true;
 
   static const String _kPrefClassEnabled = 'studymate_class_reminders_enabled';
   static const String _kPrefClassLead = 'studymate_class_reminder_lead_minutes';
   static const String _kPrefTaskEnabled = 'studymate_task_reminders_enabled';
   static const String _kPrefAlarmTone = 'studymate_alarm_tone';
+  static const String _kPrefNotificationSound = 'studymate_notification_sound_enabled';
+  static const String _kPrefTaskDoneSound = 'studymate_task_done_sound_enabled';
+  static const String _kPrefAlarmSound = 'studymate_alarm_sound_enabled';
   static const String _kPrefPermissionGranted = 'studymate_notifications_permission_granted';
 
   /// Build notification details tailored to the selected alarm tone
@@ -291,6 +322,9 @@ class NotificationService {
       taskRemindersEnabled = prefs.getBool(_kPrefTaskEnabled) ?? true;
       final toneKey = prefs.getString(_kPrefAlarmTone);
       selectedAlarmTone = AlarmTone.fromKey(toneKey);
+      notificationSoundEnabled = prefs.getBool(_kPrefNotificationSound) ?? true;
+      taskDoneSoundEnabled = prefs.getBool(_kPrefTaskDoneSound) ?? true;
+      alarmSoundEnabled = prefs.getBool(_kPrefAlarmSound) ?? true;
     } catch (e) {
       debugPrint('Error loading reminder settings: $e');
     }
@@ -302,6 +336,9 @@ class NotificationService {
     int? leadMinutes,
     bool? taskEnabled,
     AlarmTone? alarmTone,
+    bool? notificationSound,
+    bool? taskDoneSound,
+    bool? alarmSound,
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -320,6 +357,18 @@ class NotificationService {
       if (alarmTone != null) {
         selectedAlarmTone = alarmTone;
         await prefs.setString(_kPrefAlarmTone, alarmTone.key);
+      }
+      if (notificationSound != null) {
+        notificationSoundEnabled = notificationSound;
+        await prefs.setBool(_kPrefNotificationSound, notificationSound);
+      }
+      if (taskDoneSound != null) {
+        taskDoneSoundEnabled = taskDoneSound;
+        await prefs.setBool(_kPrefTaskDoneSound, taskDoneSound);
+      }
+      if (alarmSound != null) {
+        alarmSoundEnabled = alarmSound;
+        await prefs.setBool(_kPrefAlarmSound, alarmSound);
       }
     } catch (e) {
       debugPrint('Error saving reminder settings: $e');
@@ -661,8 +710,11 @@ class NotificationService {
 
   // ── Tone Preview ───────────────────────────────────────────────────────────
 
-  /// Preview tactile buzz vibration corresponding to the chosen tone
-  Future<void> previewTone(AlarmTone tone) async {
+  /// Preview alarm ringtone audio and tactile buzz vibration corresponding to the chosen tone
+  Future<void> previewTone(AlarmTone tone, {bool playAudio = true}) async {
+    if (playAudio && alarmSoundEnabled) {
+      await SoundService.instance.playAlarm(tone);
+    }
     if (isTestMode) return;
     try {
       if (tone == AlarmTone.urgent) {
@@ -674,6 +726,10 @@ class NotificationService {
       } else if (tone == AlarmTone.classic) {
         await HapticFeedback.mediumImpact();
         await Future.delayed(const Duration(milliseconds: 220));
+        await HapticFeedback.mediumImpact();
+      } else if (tone == AlarmTone.energetic) {
+        await HapticFeedback.heavyImpact();
+        await Future.delayed(const Duration(milliseconds: 150));
         await HapticFeedback.mediumImpact();
       } else if (tone == AlarmTone.gentle) {
         await HapticFeedback.lightImpact();
@@ -687,8 +743,15 @@ class NotificationService {
 
   /// Send an immediate notification to test audio, banner, and device setup
   Future<void> sendTestNotification() async {
-    // 1. Physically buzz phone immediately for tactile feedback
-    await previewTone(selectedAlarmTone);
+    // 1. Play real alarm tone or notification SFX based on settings
+    if (alarmSoundEnabled) {
+      await SoundService.instance.playAlarm(selectedAlarmTone);
+    } else if (notificationSoundEnabled) {
+      await SoundService.instance.playNotification();
+    }
+
+    // 2. Physically buzz phone immediately for tactile feedback
+    await previewTone(selectedAlarmTone, playAudio: false);
 
     // 2. Ensure service is initialized
     if (!_isInitialized && !isTestMode) {

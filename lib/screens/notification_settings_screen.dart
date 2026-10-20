@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../services/notification_service.dart';
+import '../services/sound_service.dart';
 
 const _kBgColor       = Color(0xFFF8F9FE);
 const _kCardBg        = Color(0xFFFFFFFF);
@@ -30,6 +31,10 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
   int _classLeadMinutes = 10;
   bool _taskRemindersEnabled = true;
   AlarmTone _selectedTone = AlarmTone.urgent;
+  bool _notificationSoundEnabled = true;
+  bool _taskDoneSoundEnabled = true;
+  bool _alarmSoundEnabled = true;
+  String? _playingToneKey;
   List<ScheduledReminderInfo> _scheduledReminders = [];
   bool _isLoadingReminders = true;
 
@@ -37,6 +42,12 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
   void initState() {
     super.initState();
     _loadState();
+  }
+
+  @override
+  void dispose() {
+    SoundService.instance.stopAlarm();
+    super.dispose();
   }
 
   Future<void> _loadState() async {
@@ -54,6 +65,9 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
         _classLeadMinutes = _notifService.classReminderLeadMinutes;
         _taskRemindersEnabled = _notifService.taskRemindersEnabled;
         _selectedTone = _notifService.selectedAlarmTone;
+        _notificationSoundEnabled = _notifService.notificationSoundEnabled;
+        _taskDoneSoundEnabled = _notifService.taskDoneSoundEnabled;
+        _alarmSoundEnabled = _notifService.alarmSoundEnabled;
         _scheduledReminders = summary;
         _isLoadingReminders = false;
       });
@@ -240,6 +254,35 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
     }
   }
 
+  Future<void> _toggleNotificationSound(bool value) async {
+    setState(() => _notificationSoundEnabled = value);
+    await _notifService.saveSettings(notificationSound: value);
+  }
+
+  Future<void> _toggleTaskDoneSound(bool value) async {
+    setState(() => _taskDoneSoundEnabled = value);
+    await _notifService.saveSettings(taskDoneSound: value);
+  }
+
+  Future<void> _toggleAlarmSound(bool value) async {
+    setState(() => _alarmSoundEnabled = value);
+    await _notifService.saveSettings(alarmSound: value);
+    if (!value) {
+      await SoundService.instance.stopAlarm();
+      setState(() => _playingToneKey = null);
+    }
+  }
+
+  Future<void> _toggleToneAudioPlayback(AlarmTone tone) async {
+    if (_playingToneKey == tone.key) {
+      await SoundService.instance.stopAlarm();
+      setState(() => _playingToneKey = null);
+    } else {
+      setState(() => _playingToneKey = tone.key);
+      await SoundService.instance.playAlarm(tone);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -278,6 +321,8 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
             _buildTaskRemindersCard(),
             const SizedBox(height: 16),
             _buildAlarmTonesCard(),
+            const SizedBox(height: 16),
+            _buildSoundControlsCard(),
             const SizedBox(height: 16),
             _buildTestNotificationCard(),
             const SizedBox(height: 20),
@@ -562,6 +607,182 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
     );
   }
 
+  Widget _buildSoundControlsCard() {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: _kCardBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _kCardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: _kPurpleAccent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.music_note_rounded, color: _kPurpleAccent, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      'Sound Effects & Audio',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: _kTextHead,
+                      ),
+                    ),
+                    Text(
+                      'Enable or disable notification, task done, and alarm sounds',
+                      style: TextStyle(fontSize: 12, color: _kTextMuted),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // 1. Notification Sound Toggle
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8F9FE),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE2E6F2)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.notifications_active_rounded, color: _kPrimaryBlue, size: 22),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text(
+                        'Notification Sound',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _kTextHead),
+                      ),
+                      Text(
+                        'Play notification sound effect on alerts',
+                        style: TextStyle(fontSize: 11, color: _kTextMuted),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Play Notification SFX',
+                  icon: const Icon(Icons.play_circle_fill_rounded, color: _kPrimaryBlue, size: 22),
+                  onPressed: () => SoundService.instance.playNotification(),
+                ),
+                Switch(
+                  key: const Key('toggle_notification_sound_switch'),
+                  value: _notificationSoundEnabled,
+                  activeTrackColor: _kPrimaryBlue,
+                  activeThumbColor: Colors.white,
+                  onChanged: _toggleNotificationSound,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // 2. Task Done Sound Toggle
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8F9FE),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE2E6F2)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.task_alt_rounded, color: _kSuccessGreen, size: 22),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text(
+                        'Task Done Sound',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _kTextHead),
+                      ),
+                      Text(
+                        'Play celebration sound effect when completing tasks',
+                        style: TextStyle(fontSize: 11, color: _kTextMuted),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Play Task Done SFX',
+                  icon: const Icon(Icons.play_circle_fill_rounded, color: _kSuccessGreen, size: 22),
+                  onPressed: () => SoundService.instance.playTaskDone(),
+                ),
+                Switch(
+                  key: const Key('toggle_task_done_sound_switch'),
+                  value: _taskDoneSoundEnabled,
+                  activeTrackColor: _kPrimaryBlue,
+                  activeThumbColor: Colors.white,
+                  onChanged: _toggleTaskDoneSound,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // 3. Alarm Sound Toggle
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8F9FE),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE2E6F2)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.alarm_on_rounded, color: Color(0xFFF59E0B), size: 22),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text(
+                        'Alarm Sound',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _kTextHead),
+                      ),
+                      Text(
+                        'Play ringtone audio for class reminders & alarms',
+                        style: TextStyle(fontSize: 11, color: _kTextMuted),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  key: const Key('toggle_alarm_sound_switch'),
+                  value: _alarmSoundEnabled,
+                  activeTrackColor: _kPrimaryBlue,
+                  activeThumbColor: Colors.white,
+                  onChanged: _toggleAlarmSound,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildAlarmTonesCard() {
     return Container(
       padding: const EdgeInsets.all(18),
@@ -610,6 +831,7 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
           Column(
             children: AlarmTone.values.map((tone) {
               final isSelected = _selectedTone == tone;
+              final isPlayingThis = _playingToneKey == tone.key;
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
                 decoration: BoxDecoration(
@@ -654,14 +876,26 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
                             ],
                           ),
                         ),
+                        if (tone.soundAsset != null)
+                          IconButton(
+                            key: Key('play_alarm_${tone.key}'),
+                            tooltip: isPlayingThis ? 'Stop Ringtone' : 'Play Ringtone',
+                            icon: Icon(
+                              isPlayingThis ? Icons.stop_circle_rounded : Icons.play_circle_fill_rounded,
+                              size: 24,
+                              color: isPlayingThis ? _kDangerCoral : _kPrimaryBlue,
+                            ),
+                            onPressed: () => _toggleToneAudioPlayback(tone),
+                          ),
                         IconButton(
+                          key: Key('buzz_tone_${tone.key}'),
                           tooltip: 'Test Buzz',
                           icon: Icon(
                             Icons.vibration_rounded,
                             size: 20,
                             color: isSelected ? _kPrimaryBlue : const Color(0xFF6B7280),
                           ),
-                          onPressed: () => _notifService.previewTone(tone),
+                          onPressed: () => _notifService.previewTone(tone, playAudio: false),
                         ),
                       ],
                     ),

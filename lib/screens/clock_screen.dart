@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../services/sound_service.dart';
 
 // ─── Design tokens matching StudyMate ─────────────────────────────────────────
 const _kBg = Color(0xFFEEF0FF);
@@ -31,10 +32,20 @@ class _ClockScreenState extends State<ClockScreen>
       vsync: this,
       initialIndex: widget.initialTabIndex,
     );
+    _tabController.addListener(_onTabChanged);
+  }
+
+  void _onTabChanged() {
+    // Only play ticking in stopwatch tab (index 1)
+    if (_tabController.index != 1) {
+      SoundService.instance.stopStopwatchTicking();
+    }
   }
 
   @override
   void dispose() {
+    SoundService.instance.stopStopwatchTicking();
+    _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
     super.dispose();
   }
@@ -52,10 +63,10 @@ class _ClockScreenState extends State<ClockScreen>
             Expanded(
               child: TabBarView(
                 controller: _tabController,
-                children: const [
-                  DigitalClockTab(),
-                  StopwatchTab(),
-                  CountdownTimerTab(),
+                children: [
+                  const DigitalClockTab(),
+                  StopwatchTab(tabController: _tabController),
+                  const CountdownTimerTab(),
                 ],
               ),
             ),
@@ -576,7 +587,9 @@ class _LapData {
 }
 
 class StopwatchTab extends StatefulWidget {
-  const StopwatchTab({super.key});
+  final TabController? tabController;
+
+  const StopwatchTab({super.key, this.tabController});
 
   @override
   State<StopwatchTab> createState() => _StopwatchTabState();
@@ -588,17 +601,46 @@ class _StopwatchTabState extends State<StopwatchTab>
   Timer? _ticker;
   final List<_LapData> _laps = [];
   Duration _previousLapsDuration = Duration.zero;
+  bool _tickingSoundEnabled = true;
 
   @override
   bool get wantKeepAlive => true;
 
   @override
+  void initState() {
+    super.initState();
+    widget.tabController?.addListener(_onTabControllerChanged);
+  }
+
+  void _onTabControllerChanged() {
+    if (widget.tabController == null) return;
+    if (widget.tabController!.index == 1) {
+      if (_stopwatch.isRunning && _tickingSoundEnabled) {
+        SoundService.instance.startStopwatchTicking();
+      }
+    } else {
+      SoundService.instance.stopStopwatchTicking();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant StopwatchTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.tabController != widget.tabController) {
+      oldWidget.tabController?.removeListener(_onTabControllerChanged);
+      widget.tabController?.addListener(_onTabControllerChanged);
+    }
+  }
+
+  @override
   void dispose() {
+    widget.tabController?.removeListener(_onTabControllerChanged);
     _ticker?.cancel();
     _ticker = null;
     if (_stopwatch.isRunning) {
       _stopwatch.stop();
     }
+    SoundService.instance.stopStopwatchTicking();
     super.dispose();
   }
 
@@ -607,6 +649,9 @@ class _StopwatchTabState extends State<StopwatchTab>
     _ticker = Timer.periodic(const Duration(milliseconds: 30), (_) {
       if (mounted) setState(() {});
     });
+    if (_tickingSoundEnabled) {
+      SoundService.instance.startStopwatchTicking();
+    }
     setState(() {});
   }
 
@@ -614,6 +659,7 @@ class _StopwatchTabState extends State<StopwatchTab>
     _stopwatch.stop();
     _ticker?.cancel();
     _ticker = null;
+    SoundService.instance.stopStopwatchTicking();
     setState(() {});
   }
 
@@ -623,7 +669,21 @@ class _StopwatchTabState extends State<StopwatchTab>
     _ticker = null;
     _laps.clear();
     _previousLapsDuration = Duration.zero;
+    SoundService.instance.stopStopwatchTicking();
     setState(() {});
+  }
+
+  void _toggleTickingSound() {
+    setState(() {
+      _tickingSoundEnabled = !_tickingSoundEnabled;
+      if (_stopwatch.isRunning) {
+        if (_tickingSoundEnabled) {
+          SoundService.instance.startStopwatchTicking();
+        } else {
+          SoundService.instance.stopStopwatchTicking();
+        }
+      }
+    });
   }
 
   void _recordLap() {
@@ -685,38 +745,87 @@ class _StopwatchTabState extends State<StopwatchTab>
             ),
             child: Column(
               children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: (isRunning ? _kGreenTag : _kPrimary)
-                        .withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: isRunning ? _kGreenTag : _kPrimary,
-                          shape: BoxShape.circle,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: (isRunning ? _kGreenTag : _kPrimary)
+                            .withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: isRunning ? _kGreenTag : _kPrimary,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            isRunning
+                                ? 'Running'
+                                : (elapsed > Duration.zero ? 'Paused' : 'Ready'),
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: isRunning ? _kGreenTag : _kPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Tooltip(
+                      message: _tickingSoundEnabled
+                          ? 'Mute ticking sound'
+                          : 'Enable ticking sound',
+                      child: InkWell(
+                        onTap: _toggleTickingSound,
+                        borderRadius: BorderRadius.circular(20),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: (_tickingSoundEnabled ? _kPrimary : _kTextBody)
+                                .withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _tickingSoundEnabled
+                                    ? Icons.volume_up_rounded
+                                    : Icons.volume_off_rounded,
+                                size: 13,
+                                color: _tickingSoundEnabled
+                                    ? _kPrimary
+                                    : _kTextBody,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                _tickingSoundEnabled ? 'Tick SFX' : 'Muted',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: _tickingSoundEnabled
+                                      ? _kPrimary
+                                      : _kTextBody,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 6),
-                      Text(
-                        isRunning
-                            ? 'Running'
-                            : (elapsed > Duration.zero ? 'Paused' : 'Ready'),
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: isRunning ? _kGreenTag : _kPrimary,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 20),
                 FittedBox(

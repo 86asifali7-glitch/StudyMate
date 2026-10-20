@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/app_data_service.dart';
 import '../services/notification_service.dart';
+import '../services/sound_service.dart';
 
 // ─── Design Tokens matching reference image ─────────────────────────────────
 const _kBgColor      = Color(0xFFF8F9FE); // clean light background
@@ -152,6 +153,7 @@ class _TasksScreenState extends State<TasksScreen> {
     await _persistTasks();
     if (task.isCompleted) {
       NotificationService.instance.cancelTaskReminder(task.id);
+      SoundService.instance.playTaskDone();
     } else {
       NotificationService.instance.scheduleTaskReminder(task);
     }
@@ -495,6 +497,7 @@ class _TasksScreenState extends State<TasksScreen> {
                       }
                     });
                     await _persistTasks();
+                    SoundService.instance.playTaskDone();
                   },
                 ),
                 ListTile(

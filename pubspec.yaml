@@ -24,6 +24,7 @@ dependencies:
   url_launcher: ^6.3.3
   open_filex: ^5.0.0
   web: ^1.1.0
+  audioplayers: ^6.8.1
 
 dev_dependencies:
   flutter_test:
@@ -34,3 +35,5 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/
+    - assets/sounds/alam/
+    - assets/sounds/sfx/
