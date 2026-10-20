@@ -4,6 +4,7 @@ import '../services/app_data_service.dart';
 import 'notification_settings_screen.dart';
 import 'clock_screen.dart';
 import 'calculator_screen.dart';
+import 'pdf_library_screen.dart';
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 // Inspired by the reference screenshot's lavender + white card + purple-accent style.
@@ -19,6 +20,7 @@ const _kBlueTag     = Color(0xFF3B82F6); // blue pill badge
 const _kGreenTag    = Color(0xFF059669); // green pill badge
 const _kAmberTag    = Color(0xFFF59E0B); // amber pill badge
 const _kSkyTag      = Color(0xFF0284C7); // sky blue pill badge
+const _kPdfTag      = Color(0xFFE11D48); // crimson PDF tag
 
 // ─── Screen ────────────────────────────────────────────────────────────────────
 
@@ -218,12 +220,30 @@ class _HomeScreenState extends State<HomeScreen>
                 badge: 'Calculator',
                 badgeColor: _kSkyTag,
                 trailingLabel: 'Tool',
-                isLast: true,
+                isLast: false,
                 onTap: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (_) => const CalculatorScreen(),
+                    ),
+                  );
+                },
+              )),
+              SliverToBoxAdapter(child: _buildQuickCard(
+                icon: Icons.picture_as_pdf_rounded,
+                iconBg: _kPdfTag,
+                title: 'My PDFs',
+                subtitle: 'Personal study documents library',
+                badge: 'PDFs',
+                badgeColor: _kPdfTag,
+                trailingLabel: 'Library',
+                isLast: true,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const PdfLibraryScreen(),
                     ),
                   );
                 },

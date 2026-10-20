@@ -19,6 +19,11 @@ dependencies:
     sdk: flutter
   flutter_local_notifications: ^22.3.2
   timezone: ^0.11.2
+  path_provider: ^2.1.6
+  file_picker: ^13.1.0
+  url_launcher: ^6.3.3
+  open_filex: ^5.0.0
+  web: ^1.1.0
 
 dev_dependencies:
   flutter_test:
