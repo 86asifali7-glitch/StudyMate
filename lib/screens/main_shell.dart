@@ -89,6 +89,7 @@ class _MainShellState extends State<MainShell> {
             children: List.generate(
               _navDestinations.length,
               (i) => _NavBarItem(
+                key: ValueKey<String>(_navDestinations[i].label),
                 dest: _navDestinations[i],
                 isSelected: _selectedIndex == i,
                 onTap: () => _onNavTap(i),
@@ -109,6 +110,7 @@ class _NavBarItem extends StatelessWidget {
   final VoidCallback onTap;
 
   const _NavBarItem({
+    super.key,
     required this.dest,
     required this.isSelected,
     required this.onTap,
@@ -116,40 +118,44 @@ class _NavBarItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeInOut,
-        padding: isSelected
-            ? const EdgeInsets.symmetric(horizontal: 16, vertical: 8)
-            : const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? AppColors.primaryLight
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              dest.icon,
-              size: 20,
-              color: isSelected ? _kBlue : AppColors.textLight,
-            ),
-            if (isSelected) ...[
-              const SizedBox(width: 6),
-              Text(
-                dest.label,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: _kBlue,
-                ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        splashColor: AppColors.primary.withValues(alpha: 0.12),
+        highlightColor: AppColors.primary.withValues(alpha: 0.08),
+        child: Ink(
+          padding: isSelected
+              ? const EdgeInsets.symmetric(horizontal: 16, vertical: 8)
+              : const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? AppColors.primaryLight
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                dest.icon,
+                size: 20,
+                color: isSelected ? _kBlue : AppColors.textLight,
               ),
+              if (isSelected) ...[
+                const SizedBox(width: 6),
+                Text(
+                  dest.label,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: _kBlue,
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
