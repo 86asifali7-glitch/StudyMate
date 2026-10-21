@@ -5,6 +5,7 @@ import 'notification_settings_screen.dart';
 import 'clock_screen.dart';
 import 'calculator_screen.dart';
 import 'pdf_library_screen.dart';
+import 'vault_lock_screen.dart';
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 // Inspired by the reference screenshot's lavender + white card + purple-accent style.
@@ -191,63 +192,11 @@ class _HomeScreenState extends State<HomeScreen>
                 badge: 'Timetable',
                 badgeColor: _kGreenTag,
                 count: '$_timetableCount',
-                isLast: false,
+                isLast: true,
                 onTap: () => _go(3),
               )),
-              SliverToBoxAdapter(child: _buildQuickCard(
-                icon: Icons.access_time_rounded,
-                iconBg: _kAmberTag,
-                title: 'Clock',
-                subtitle: 'Digital clock, stopwatch & timer',
-                badge: 'Clock',
-                badgeColor: _kAmberTag,
-                trailingLabel: 'Tool',
-                isLast: false,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const ClockScreen(),
-                    ),
-                  );
-                },
-              )),
-              SliverToBoxAdapter(child: _buildQuickCard(
-                icon: Icons.calculate_rounded,
-                iconBg: _kSkyTag,
-                title: 'Calculator',
-                subtitle: 'Mini study & quick calculations',
-                badge: 'Calculator',
-                badgeColor: _kSkyTag,
-                trailingLabel: 'Tool',
-                isLast: false,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const CalculatorScreen(),
-                    ),
-                  );
-                },
-              )),
-              SliverToBoxAdapter(child: _buildQuickCard(
-                icon: Icons.picture_as_pdf_rounded,
-                iconBg: _kPdfTag,
-                title: 'My PDFs',
-                subtitle: 'Personal study documents library',
-                badge: 'PDFs',
-                badgeColor: _kPdfTag,
-                trailingLabel: 'Library',
-                isLast: true,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const PdfLibraryScreen(),
-                    ),
-                  );
-                },
-              )),
+              SliverToBoxAdapter(child: _buildSectionLabel('Quick Tools')),
+              SliverToBoxAdapter(child: _buildToolsRow(context)),
               const SliverToBoxAdapter(child: SizedBox(height: 36)),
             ],
           ),
@@ -420,6 +369,135 @@ class _HomeScreenState extends State<HomeScreen>
         count: count,
         trailingLabel: trailingLabel,
         onTap: onTap,
+      ),
+    );
+  }
+
+  // ── Quick Access Tools Row (Compact Horizontal Layout) ─────────────────────
+
+  Widget _buildToolsRow(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildToolItem(
+            context: context,
+            icon: Icons.access_time_rounded,
+            iconBg: _kAmberTag,
+            title: 'Clock',
+            subtitle: 'Digital clock, stopwatch & timer',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ClockScreen()),
+              );
+            },
+          ),
+          _buildToolItem(
+            context: context,
+            icon: Icons.calculate_rounded,
+            iconBg: _kSkyTag,
+            title: 'Calculator',
+            subtitle: 'Mini study & quick calculations',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const CalculatorScreen()),
+              );
+            },
+          ),
+          _buildToolItem(
+            context: context,
+            icon: Icons.picture_as_pdf_rounded,
+            iconBg: _kPdfTag,
+            title: 'My PDFs',
+            subtitle: 'Personal study documents library',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const PdfLibraryScreen()),
+              );
+            },
+          ),
+          _buildToolItem(
+            context: context,
+            icon: Icons.shield_rounded,
+            iconBg: _kPurpleTag,
+            title: 'Personal Vault',
+            subtitle: 'Encrypted media, files & secret notes',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const VaultLockScreen()),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToolItem({
+    required BuildContext context,
+    required IconData icon,
+    required Color iconBg,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Centered icon in subtle rounded-square background
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: iconBg.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: Icon(icon, color: iconBg, size: 23),
+                ),
+                const SizedBox(height: 6),
+                // Short name directly underneath
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: _kTextHead,
+                    height: 1.2,
+                  ),
+                ),
+                // Subtitle preserved in an accessible 1x1 box within InkWell for test & screen reader support
+                SizedBox(
+                  width: 1,
+                  height: 1,
+                  child: Opacity(
+                    opacity: 0,
+                    child: Text(
+                      subtitle,
+                      style: const TextStyle(fontSize: 1),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -6,6 +6,7 @@ import '../screens/notification_settings_screen.dart';
 import '../screens/clock_screen.dart';
 import '../screens/calculator_screen.dart';
 import '../screens/pdf_library_screen.dart';
+import '../screens/vault_lock_screen.dart';
 
 class AppRoutes {
   // Route name constants
@@ -16,6 +17,7 @@ class AppRoutes {
   static const String clock = '/clock';
   static const String calculator = '/calculator';
   static const String pdfs = '/pdfs';
+  static const String vault = '/vault';
 
   // notes / tasks / timetable are no longer separate named routes —
   // they are rendered inside MainShell via IndexedStack.
@@ -29,5 +31,6 @@ class AppRoutes {
     clock: (_) => const ClockScreen(),
     calculator: (_) => const CalculatorScreen(),
     pdfs: (_) => const PdfLibraryScreen(),
+    vault: (_) => const VaultLockScreen(),
   };
 }
