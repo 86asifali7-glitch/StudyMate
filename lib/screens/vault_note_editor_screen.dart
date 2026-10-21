@@ -3,11 +3,12 @@ import 'package:flutter/material.dart';
 import '../models/vault_item.dart';
 import '../services/vault_service.dart';
 
-const _kBg = Color(0xFFEEF0FF);
+const _kBg = Color(0xFFFFFFFF);
 const _kCard = Color(0xFFFFFFFF);
-const _kTextHead = Color(0xFF1A1A2E);
-const _kTextBody = Color(0xFF6B7280);
-const _kVaultPurple = Color(0xFF7C3AED);
+const _kBorder = Color(0xFFE2E8F0);
+const _kTextHead = Color(0xFF1E293B);
+const _kTextBody = Color(0xFF64748B);
+const _kVaultPurple = Color(0xFF2563EB);
 
 class VaultNoteEditorScreen extends StatefulWidget {
   final VaultItem? existingItem;
@@ -134,6 +135,7 @@ class _VaultNoteEditorScreenState extends State<VaultNoteEditorScreen> {
                     decoration: BoxDecoration(
                       color: _kCard,
                       borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: _kBorder, width: 1),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.04),
@@ -159,6 +161,7 @@ class _VaultNoteEditorScreenState extends State<VaultNoteEditorScreen> {
                       decoration: BoxDecoration(
                         color: _kCard,
                         borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: _kBorder, width: 1),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withValues(alpha: 0.04),

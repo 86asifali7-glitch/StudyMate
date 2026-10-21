@@ -13,14 +13,16 @@ import 'vault_video_player_screen.dart';
 import 'vault_pdf_viewer_screen.dart';
 
 // ─── Design tokens matching StudyMate ─────────────────────────────────────────
-const _kBg = Color(0xFFEEF0FF);
-const _kVaultPurple = Color(0xFF7C3AED);
+const _kBg = Color(0xFFFFFFFF);
+const _kVaultPurple = Color(0xFF2563EB);
+const _kPrimaryLight = Color(0xFFEFF6FF);
 const _kCard = Color(0xFFFFFFFF);
-const _kTextHead = Color(0xFF1A1A2E);
-const _kTextBody = Color(0xFF6B7280);
-const _kGreenTag = Color(0xFF059669);
+const _kBorder = Color(0xFFE2E8F0);
+const _kTextHead = Color(0xFF1E293B);
+const _kTextBody = Color(0xFF64748B);
+const _kGreenTag = Color(0xFF10B981);
 const _kRedTag = Color(0xFFEF4444);
-const _kSkyTag = Color(0xFF0284C7);
+const _kSkyTag = Color(0xFF2563EB);
 const _kAmberTag = Color(0xFFF59E0B);
 
 class VaultHomeScreen extends StatefulWidget {
@@ -705,6 +707,7 @@ class _VaultHomeScreenState extends State<VaultHomeScreen>
                   decoration: BoxDecoration(
                     color: _kCard,
                     borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: _kBorder, width: 1),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.04),
@@ -867,7 +870,7 @@ class _VaultHomeScreenState extends State<VaultHomeScreen>
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: _kVaultPurple.withValues(alpha: 0.12),
+                color: _kPrimaryLight,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: const Icon(Icons.lock_rounded, color: _kVaultPurple, size: 18),

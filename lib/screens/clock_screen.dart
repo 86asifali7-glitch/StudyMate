@@ -3,13 +3,15 @@ import 'package:flutter/material.dart';
 import '../services/sound_service.dart';
 
 // ─── Design tokens matching StudyMate ─────────────────────────────────────────
-const _kBg = Color(0xFFEEF0FF);
-const _kPrimary = Color(0xFF5B6CF9);
+const _kBg = Color(0xFFFFFFFF);
+const _kPrimary = Color(0xFF2563EB);
+const _kPrimaryLight = Color(0xFFEFF6FF);
 const _kCard = Color(0xFFFFFFFF);
-const _kTextHead = Color(0xFF1A1A2E);
-const _kTextBody = Color(0xFF6B7280);
+const _kBorder = Color(0xFFE2E8F0);
+const _kTextHead = Color(0xFF1E293B);
+const _kTextBody = Color(0xFF64748B);
 const _kAmberTag = Color(0xFFF59E0B);
-const _kGreenTag = Color(0xFF059669);
+const _kGreenTag = Color(0xFF10B981);
 const _kRedTag = Color(0xFFEF4444);
 
 class ClockScreen extends StatefulWidget {
@@ -90,11 +92,12 @@ class _ClockScreenState extends State<ClockScreen>
               decoration: BoxDecoration(
                 color: _kCard,
                 borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _kBorder, width: 1),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.07),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
@@ -134,20 +137,20 @@ class _ClockScreenState extends State<ClockScreen>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
-              color: _kAmberTag.withValues(alpha: 0.14),
+              color: _kPrimaryLight,
               borderRadius: BorderRadius.circular(20),
             ),
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.schedule_rounded, size: 14, color: _kAmberTag),
+                Icon(Icons.schedule_rounded, size: 14, color: _kPrimary),
                 SizedBox(width: 4),
                 Text(
                   'Tool',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: _kAmberTag,
+                    color: _kPrimary,
                   ),
                 ),
               ],
@@ -165,11 +168,12 @@ class _ClockScreenState extends State<ClockScreen>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _kBorder, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 3),
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
           ),
         ],
       ),

@@ -5,8 +5,8 @@ import 'notes_screen.dart';
 import 'tasks_screen.dart';
 import 'timetable_screen.dart';
 
-// ─── Color constant matching the home_screen nav bar style ───────────────────
-const _kBlue = Color(0xFF4F6FFF);
+// ─── Color constant matching the design system ────────────────────────────────
+const _kBlue = AppColors.primary;
 
 // ─── Nav destination descriptors ─────────────────────────────────────────────
 class _NavDest {
@@ -69,11 +69,14 @@ class _MainShellState extends State<MainShell> {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
+        border: const Border(
+          top: BorderSide(color: AppColors.border, width: 1),
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.07),
-            blurRadius: 16,
-            offset: const Offset(0, -4),
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, -3),
           ),
         ],
       ),
@@ -98,7 +101,7 @@ class _MainShellState extends State<MainShell> {
   }
 }
 
-// ─── Bottom Nav Item (identical style to home_screen.dart's original bar) ────
+// ─── Bottom Nav Item (standardized blue & slate gray) ────────────────────────
 
 class _NavBarItem extends StatelessWidget {
   final _NavDest dest;
@@ -123,7 +126,7 @@ class _NavBarItem extends StatelessWidget {
             : const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected
-              ? _kBlue.withValues(alpha: 0.10)
+              ? AppColors.primaryLight
               : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
         ),

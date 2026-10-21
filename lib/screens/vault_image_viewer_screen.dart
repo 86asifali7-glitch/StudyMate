@@ -10,7 +10,7 @@ const _kCard = Color(0xFF1E1B2E);
 const _kTextHead = Color(0xFFF3F4F6);
 const _kTextBody = Color(0xFF9CA3AF);
 const _kRedTag = Color(0xFFEF4444);
-const _kVaultPurple = Color(0xFF8B5CF6);
+const _kVaultPurple = Color(0xFF2563EB);
 
 class VaultImageViewerScreen extends StatefulWidget {
   final VaultItem item;

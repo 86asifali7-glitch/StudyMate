@@ -4,19 +4,19 @@ import '../services/notification_service.dart';
 import '../services/sound_service.dart';
 
 // ─── Design Tokens matching reference image ─────────────────────────────────
-const _kBgColor      = Color(0xFFF8F9FE); // clean light background
+const _kBgColor      = Color(0xFFFFFFFF); // clean white background
 const _kCardBg       = Color(0xFFFFFFFF); // white card surface
-const _kPrimaryBlue  = Color(0xFF4765FF); // vibrant blue accent
-const _kDueColor     = Color(0xFF4B69FD); // due date blue
-const _kTextHead     = Color(0xFF191D31); // dark navy heading
-const _kTextMuted    = Color(0xFF8C93A8); // muted subtitle text
-const _kTextDone     = Color(0xFF636A80); // completed task text
-const _kDeleteBg     = Color(0xFFFFF0F1); // soft reddish/coral container
-const _kDeleteIcon   = Color(0xFFE56969); // coral trash icon
-const _kTabBg        = Color(0xFFEFF1F9); // tab selector track
-const _kTabActiveBg  = Color(0xFFE8EEFF); // active tab pill tint
-const _kCardBorder   = Color(0xFFF1F3F9); // subtle card border
-const _kCheckBorder  = Color(0xFFBCC2D4); // unselected checkbox border
+const _kPrimaryBlue  = Color(0xFF2563EB); // vibrant blue accent
+const _kDueColor     = Color(0xFF2563EB); // due date blue
+const _kTextHead     = Color(0xFF1E293B); // dark slate heading
+const _kTextMuted    = Color(0xFF64748B); // muted subtitle text
+const _kTextDone     = Color(0xFF94A3B8); // completed task text
+const _kDeleteBg     = Color(0xFFFEF2F2); // soft reddish container
+const _kDeleteIcon   = Color(0xFFEF4444); // coral trash icon
+const _kTabBg        = Color(0xFFF8FAFC); // tab selector track
+const _kTabActiveBg  = Color(0xFFEFF6FF); // active tab pill tint
+const _kCardBorder   = Color(0xFFE2E8F0); // subtle card border
+const _kCheckBorder  = Color(0xFFCBD5E1); // unselected checkbox border
 
 class TaskItem {
   final String id;
@@ -661,7 +661,7 @@ class _TasksScreenState extends State<TasksScreen> {
                                   Icon(
                                     Icons.format_list_bulleted_rounded,
                                     size: 18,
-                                    color: _selectedTab == 0 ? _kDueColor : const Color(0xFF6B7280),
+                                    color: _selectedTab == 0 ? _kDueColor : _kTextMuted,
                                   ),
                                   const SizedBox(width: 8),
                                   Text(
@@ -669,7 +669,7 @@ class _TasksScreenState extends State<TasksScreen> {
                                     style: TextStyle(
                                       fontSize: 13.5,
                                       fontWeight: _selectedTab == 0 ? FontWeight.w700 : FontWeight.w500,
-                                      color: _selectedTab == 0 ? _kDueColor : const Color(0xFF6B7280),
+                                      color: _selectedTab == 0 ? _kDueColor : _kTextMuted,
                                     ),
                                   ),
                                 ],
@@ -709,7 +709,7 @@ class _TasksScreenState extends State<TasksScreen> {
                                   Icon(
                                     Icons.check_circle_outline_rounded,
                                     size: 18,
-                                    color: _selectedTab == 1 ? _kDueColor : const Color(0xFF6B7280),
+                                    color: _selectedTab == 1 ? _kDueColor : _kTextMuted,
                                   ),
                                   const SizedBox(width: 8),
                                   Text(
@@ -717,7 +717,7 @@ class _TasksScreenState extends State<TasksScreen> {
                                     style: TextStyle(
                                       fontSize: 13.5,
                                       fontWeight: _selectedTab == 1 ? FontWeight.w700 : FontWeight.w500,
-                                      color: _selectedTab == 1 ? _kDueColor : const Color(0xFF6B7280),
+                                      color: _selectedTab == 1 ? _kDueColor : _kTextMuted,
                                     ),
                                   ),
                                 ],

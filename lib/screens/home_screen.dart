@@ -10,18 +10,14 @@ import 'vault_lock_screen.dart';
 // ─── Design tokens ─────────────────────────────────────────────────────────────
 // Inspired by the reference screenshot's lavender + white card + purple-accent style.
 
-const _kBg          = Color(0xFFEEF0FF); // soft lavender page background
-const _kPrimary     = Color(0xFF5B6CF9); // indigo-purple primary
-const _kPrimaryDark = Color(0xFF4152E8); // deeper indigo (gradient stop)
+const _kBg          = Color(0xFFFFFFFF); // clean white page background
+const _kPrimary     = Color(0xFF2563EB); // vibrant study blue primary
+const _kPrimaryDark = Color(0xFF1D4ED8); // deeper blue (gradient stop)
+const _kPrimaryLight= Color(0xFFEFF6FF); // light blue background tint
 const _kCard        = Color(0xFFFFFFFF); // white card surface
-const _kTextHead    = Color(0xFF1A1A2E); // near-black heading
-const _kTextBody    = Color(0xFF6B7280); // muted body text
-const _kPurpleTag   = Color(0xFF7C3AED); // purple pill badge
-const _kBlueTag     = Color(0xFF3B82F6); // blue pill badge
-const _kGreenTag    = Color(0xFF059669); // green pill badge
-const _kAmberTag    = Color(0xFFF59E0B); // amber pill badge
-const _kSkyTag      = Color(0xFF0284C7); // sky blue pill badge
-const _kPdfTag      = Color(0xFFE11D48); // crimson PDF tag
+const _kBorder      = Color(0xFFE2E8F0); // subtle border
+const _kTextHead    = Color(0xFF1E293B); // near-black / dark slate heading
+const _kTextBody    = Color(0xFF64748B); // muted slate body text
 
 // ─── Screen ────────────────────────────────────────────────────────────────────
 
@@ -166,31 +162,31 @@ class _HomeScreenState extends State<HomeScreen>
               SliverToBoxAdapter(child: _buildSectionLabel('Quick Access')),
               SliverToBoxAdapter(child: _buildQuickCard(
                 icon: Icons.menu_book_rounded,
-                iconBg: _kPurpleTag,
+                iconBg: _kPrimaryLight,
                 title: 'Notes',
                 subtitle: 'Lecture & study notes',
                 badge: 'Notes',
-                badgeColor: _kPurpleTag,
+                badgeColor: _kPrimary,
                 count: '$_noteCount',
                 onTap: () => _go(1),
               )),
               SliverToBoxAdapter(child: _buildQuickCard(
                 icon: Icons.check_circle_outline_rounded,
-                iconBg: _kBlueTag,
+                iconBg: _kPrimaryLight,
                 title: 'Tasks',
                 subtitle: 'Assignments & to-dos',
                 badge: 'Tasks',
-                badgeColor: _kBlueTag,
+                badgeColor: _kPrimary,
                 count: '$_taskCount',
                 onTap: () => _go(2),
               )),
               SliverToBoxAdapter(child: _buildQuickCard(
                 icon: Icons.calendar_month_rounded,
-                iconBg: _kGreenTag,
+                iconBg: _kPrimaryLight,
                 title: 'Timetable',
                 subtitle: 'Weekly class schedule',
                 badge: 'Timetable',
-                badgeColor: _kGreenTag,
+                badgeColor: _kPrimary,
                 count: '$_timetableCount',
                 isLast: true,
                 onTap: () => _go(3),
@@ -209,7 +205,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildTopBar() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
       child: Row(
         children: [
           // Gradient circle avatar / logo
@@ -272,7 +268,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildHero() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 22, 20, 4),
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -296,7 +292,7 @@ class _HomeScreenState extends State<HomeScreen>
               height: 1.55,
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 14),
           // Hero card  ── gradient-outlined card with class info
           _HeroCard(
             onViewTimetable: () => _go(3),
@@ -313,14 +309,14 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildStatsRow() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 4),
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
       child: Row(
         children: [
-          _StatBadge(label: 'Notes',   value: '$_noteCount', color: _kPurpleTag, onTap: () => _go(1)),
+          _StatBadge(label: 'Notes',   value: '$_noteCount', color: _kPrimary, onTap: () => _go(1)),
           const SizedBox(width: 12),
-          _StatBadge(label: 'Tasks',   value: '$_taskCount',  color: _kBlueTag,   onTap: () => _go(2)),
+          _StatBadge(label: 'Tasks',   value: '$_taskCount',  color: _kPrimary,   onTap: () => _go(2)),
           const SizedBox(width: 12),
-          _StatBadge(label: 'Classes', value: '$_timetableCount',  color: _kGreenTag,  onTap: () => _go(3)),
+          _StatBadge(label: 'Classes', value: '$_timetableCount',  color: _kPrimary,  onTap: () => _go(3)),
         ],
       ),
     );
@@ -330,7 +326,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildSectionLabel(String text) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
       child: Text(
         text,
         style: const TextStyle(
@@ -358,7 +354,7 @@ class _HomeScreenState extends State<HomeScreen>
     bool isLast = false,
   }) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(20, 0, 20, isLast ? 0 : 12),
+      padding: EdgeInsets.fromLTRB(20, 0, 20, isLast ? 0 : 10),
       child: _QuickCard(
         icon: icon,
         iconBg: iconBg,
@@ -373,7 +369,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  // ── Quick Access Tools Row (Compact Horizontal Layout) ─────────────────────
+  // ── Quick Access Tools Row (Standardized Blue & White Icons) ───────────────
 
   Widget _buildToolsRow(BuildContext context) {
     return Padding(
@@ -385,7 +381,7 @@ class _HomeScreenState extends State<HomeScreen>
           _buildToolItem(
             context: context,
             icon: Icons.access_time_rounded,
-            iconBg: _kAmberTag,
+            iconBg: _kPrimaryLight,
             title: 'Clock',
             subtitle: 'Digital clock, stopwatch & timer',
             onTap: () {
@@ -398,7 +394,7 @@ class _HomeScreenState extends State<HomeScreen>
           _buildToolItem(
             context: context,
             icon: Icons.calculate_rounded,
-            iconBg: _kSkyTag,
+            iconBg: _kPrimaryLight,
             title: 'Calculator',
             subtitle: 'Mini study & quick calculations',
             onTap: () {
@@ -411,7 +407,7 @@ class _HomeScreenState extends State<HomeScreen>
           _buildToolItem(
             context: context,
             icon: Icons.picture_as_pdf_rounded,
-            iconBg: _kPdfTag,
+            iconBg: _kPrimaryLight,
             title: 'My PDFs',
             subtitle: 'Personal study documents library',
             onTap: () {
@@ -424,7 +420,7 @@ class _HomeScreenState extends State<HomeScreen>
           _buildToolItem(
             context: context,
             icon: Icons.shield_rounded,
-            iconBg: _kPurpleTag,
+            iconBg: _kPrimaryLight,
             title: 'Personal Vault',
             subtitle: 'Encrypted media, files & secret notes',
             onTap: () {
@@ -458,15 +454,16 @@ class _HomeScreenState extends State<HomeScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Centered icon in subtle rounded-square background
+                // Centered icon in subtle light-blue rounded-square background
                 Container(
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: iconBg.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(15),
+                    color: _kPrimaryLight,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: _kBorder, width: 1),
                   ),
-                  child: Icon(icon, color: iconBg, size: 23),
+                  child: Icon(icon, color: _kPrimary, size: 23),
                 ),
                 const SizedBox(height: 6),
                 // Short name directly underneath
@@ -520,11 +517,12 @@ class _TopBarBtn extends StatelessWidget {
         decoration: BoxDecoration(
           color: _kCard,
           borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _kBorder, width: 1),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.07),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
           ],
         ),
@@ -553,16 +551,16 @@ class _HeroCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF6C63FF), Color(0xFF4F9FFF)],
+          colors: [Color(0xFF2563EB), Color(0xFF3B82F6)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF6C63FF).withValues(alpha: 0.35),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            color: const Color(0xFF2563EB).withValues(alpha: 0.28),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -628,7 +626,7 @@ class _HeroCard extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF6C63FF),
+                        color: Color(0xFF2563EB),
                       ),
                     ),
                   ),
@@ -678,11 +676,12 @@ class _StatBadge extends StatelessWidget {
           decoration: BoxDecoration(
             color: _kCard,
             borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _kBorder, width: 1),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.06),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
               ),
             ],
           ),
@@ -746,22 +745,18 @@ class _QuickCard extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Ink(
           decoration: BoxDecoration(
             color: _kCard,
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _kBorder, width: 1),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.06),
-                blurRadius: 14,
-                offset: const Offset(0, 4),
-              ),
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                blurRadius: 4,
-                offset: const Offset(0, 1),
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 12,
+                offset: const Offset(0, 3),
               ),
             ],
           ),
@@ -769,15 +764,16 @@ class _QuickCard extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
               children: [
-                // Left: icon in tinted circle
+                // Left: icon in rounded light-blue container with equal dimensions
                 Container(
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: iconBg.withValues(alpha: 0.12),
-                    shape: BoxShape.circle,
+                    color: _kPrimaryLight,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: _kBorder, width: 1),
                   ),
-                  child: Icon(icon, color: iconBg, size: 22),
+                  child: Icon(icon, color: _kPrimary, size: 22),
                 ),
                 const SizedBox(width: 14),
                 // Middle: title + subtitle
@@ -812,7 +808,7 @@ class _QuickCard extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    _PillBadge(label: badge, color: badgeColor),
+                    _PillBadge(label: badge, color: _kPrimary),
                     const SizedBox(height: 4),
                     Text(
                       trailingLabel ??
@@ -848,7 +844,7 @@ class _PillBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+        color: _kPrimaryLight,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(

@@ -11,8 +11,8 @@ import '../services/vault_service.dart';
 const _kCard = Color(0xFF1E1B2E);
 const _kTextHead = Color(0xFFF3F4F6);
 const _kTextBody = Color(0xFF9CA3AF);
-const _kVaultPurple = Color(0xFF8B5CF6);
-const _kVaultPurpleDark = Color(0xFF6D28D9);
+const _kVaultPurple = Color(0xFF2563EB);
+const _kVaultPurpleDark = Color(0xFF1D4ED8);
 
 class VaultAudioPlayerScreen extends StatefulWidget {
   final VaultItem item;

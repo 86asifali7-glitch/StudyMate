@@ -4,14 +4,15 @@ import '../services/vault_service.dart';
 import 'vault_home_screen.dart';
 
 // ─── Design tokens matching StudyMate ─────────────────────────────────────────
-const _kBg = Color(0xFFEEF0FF);
-const _kPrimary = Color(0xFF5B6CF9);
-const _kVaultPurple = Color(0xFF7C3AED);
+const _kBg = Color(0xFFFFFFFF);
+const _kPrimary = Color(0xFF2563EB);
+const _kVaultPurple = Color(0xFF2563EB);
 const _kCard = Color(0xFFFFFFFF);
-const _kTextHead = Color(0xFF1A1A2E);
-const _kTextBody = Color(0xFF6B7280);
+const _kBorder = Color(0xFFE2E8F0);
+const _kTextHead = Color(0xFF1E293B);
+const _kTextBody = Color(0xFF64748B);
 const _kRedTag = Color(0xFFEF4444);
-const _kGreenTag = Color(0xFF059669);
+const _kGreenTag = Color(0xFF10B981);
 
 enum _LockMode {
   createPin,
@@ -409,7 +410,7 @@ class _VaultLockScreenState extends State<VaultLockScreen>
                         height: 76,
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
-                            colors: [_kVaultPurple, Color(0xFF9333EA)],
+                            colors: [_kPrimary, Color(0xFF1D4ED8)],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
@@ -588,11 +589,12 @@ class _VaultLockScreenState extends State<VaultLockScreen>
           decoration: BoxDecoration(
             color: _kCard,
             shape: BoxShape.circle,
+            border: Border.all(color: _kBorder, width: 1),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 3),
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
             ],
           ),

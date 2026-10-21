@@ -7,13 +7,14 @@ import '../services/pdf_storage_service.dart';
 import 'pdf_viewer_screen.dart';
 
 // ─── Design tokens matching StudyMate ─────────────────────────────────────────
-const _kBg = Color(0xFFEEF0FF);
-const _kPrimary = Color(0xFF5B6CF9);
+const _kBg = Color(0xFFFFFFFF);
+const _kPrimary = Color(0xFF2563EB);
+const _kPrimaryLight = Color(0xFFEFF6FF);
 const _kCard = Color(0xFFFFFFFF);
-const _kTextHead = Color(0xFF1A1A2E);
-const _kTextBody = Color(0xFF6B7280);
-const _kPdfTag = Color(0xFFE11D48);
-const _kGreenTag = Color(0xFF059669);
+const _kBorder = Color(0xFFE2E8F0);
+const _kTextHead = Color(0xFF1E293B);
+const _kTextBody = Color(0xFF64748B);
+const _kGreenTag = Color(0xFF10B981);
 const _kRedTag = Color(0xFFEF4444);
 
 class PdfLibraryScreen extends StatefulWidget {
@@ -489,11 +490,12 @@ class _PdfLibraryScreenState extends State<PdfLibraryScreen> {
               decoration: BoxDecoration(
                 color: _kCard,
                 borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _kBorder, width: 1),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.07),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
@@ -533,20 +535,20 @@ class _PdfLibraryScreenState extends State<PdfLibraryScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
-              color: _kPdfTag.withValues(alpha: 0.14),
+              color: _kPrimaryLight,
               borderRadius: BorderRadius.circular(20),
             ),
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.picture_as_pdf_rounded, size: 14, color: _kPdfTag),
+                Icon(Icons.picture_as_pdf_rounded, size: 14, color: _kPrimary),
                 SizedBox(width: 4),
                 Text(
                   'Library',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: _kPdfTag,
+                    color: _kPrimary,
                   ),
                 ),
               ],
@@ -655,7 +657,8 @@ class _PdfLibraryScreenState extends State<PdfLibraryScreen> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: _kCard,
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _kBorder, width: 1),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.05),
@@ -671,12 +674,13 @@ class _PdfLibraryScreenState extends State<PdfLibraryScreen> {
                   width: 46,
                   height: 46,
                   decoration: BoxDecoration(
-                    color: _kPdfTag.withValues(alpha: 0.12),
-                    shape: BoxShape.circle,
+                    color: _kPrimaryLight,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: _kBorder, width: 1),
                   ),
                   child: const Icon(
                     Icons.picture_as_pdf_rounded,
-                    color: _kPdfTag,
+                    color: _kPrimary,
                     size: 22,
                   ),
                 ),

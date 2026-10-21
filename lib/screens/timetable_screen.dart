@@ -3,14 +3,14 @@ import '../services/app_data_service.dart';
 import '../services/notification_service.dart';
 
 // ─── Design Tokens matching reference image ─────────────────────────────────
-const _kBgColor       = Color(0xFFF8F9FE); // clean light background
+const _kBgColor       = Color(0xFFFFFFFF); // clean white background
 const _kCardBg        = Color(0xFFFFFFFF); // white card surface
-const _kPurplePrimary = Color(0xFF7551FF); // primary purple accent
-const _kLavenderSoft  = Color(0xFFF1EEFF); // soft lavender container
-const _kTextHead      = Color(0xFF191D31); // dark navy heading
-const _kTextMuted     = Color(0xFF8C93A8); // muted subtitle & icon
-const _kCardBorder    = Color(0xFFF1F3F9); // subtle card border
-const _kDeleteIcon    = Color(0xFFE56969); // coral trash icon
+const _kPurplePrimary = Color(0xFF2563EB); // primary blue accent
+const _kLavenderSoft  = Color(0xFFEFF6FF); // soft light-blue container
+const _kTextHead      = Color(0xFF1E293B); // dark slate heading
+const _kTextMuted     = Color(0xFF64748B); // muted subtitle & icon
+const _kCardBorder    = Color(0xFFE2E8F0); // subtle card border
+const _kDeleteIcon    = Color(0xFFEF4444); // coral trash icon
 
 // ─── Data Model ──────────────────────────────────────────────────────────────
 class TimetableEntry {
@@ -893,8 +893,8 @@ class _TimetableCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           mouseCursor: SystemMouseCursors.click,
           highlightColor: Colors.transparent,
-          hoverColor: const Color(0xFFF9F8FF),
-          splashColor: const Color(0xFFF0EDFF),
+          hoverColor: _kLavenderSoft.withValues(alpha: 0.5),
+          splashColor: _kLavenderSoft,
           onTap: onEdit,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),

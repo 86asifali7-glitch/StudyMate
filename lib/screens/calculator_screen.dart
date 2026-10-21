@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 
 // ─── Design tokens matching StudyMate ─────────────────────────────────────────
-const _kBg = Color(0xFFEEF0FF);
-const _kPrimary = Color(0xFF5B6CF9);
+const _kBg = Color(0xFFFFFFFF);
+const _kPrimary = Color(0xFF2563EB);
+const _kPrimaryLight = Color(0xFFEFF6FF);
 const _kCard = Color(0xFFFFFFFF);
-const _kTextHead = Color(0xFF1A1A2E);
-const _kTextBody = Color(0xFF6B7280);
-const _kSkyTag = Color(0xFF0284C7);
+const _kBorder = Color(0xFFE2E8F0);
+const _kTextHead = Color(0xFF1E293B);
+const _kTextBody = Color(0xFF64748B);
 const _kRedTag = Color(0xFFEF4444);
 
 class CalculatorScreen extends StatefulWidget {
@@ -372,11 +373,12 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
               decoration: BoxDecoration(
                 color: _kCard,
                 borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _kBorder, width: 1),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.07),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
@@ -416,20 +418,20 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
-              color: _kSkyTag.withValues(alpha: 0.14),
+              color: _kPrimaryLight,
               borderRadius: BorderRadius.circular(20),
             ),
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.calculate_rounded, size: 14, color: _kSkyTag),
+                Icon(Icons.calculate_rounded, size: 14, color: _kPrimary),
                 SizedBox(width: 4),
                 Text(
                   'Tool',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: _kSkyTag,
+                    color: _kPrimary,
                   ),
                 ),
               ],
@@ -447,11 +449,12 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
       decoration: BoxDecoration(
         color: _kCard,
         borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: _kBorder, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -518,11 +521,12 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
       decoration: BoxDecoration(
         color: _kCard,
         borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: _kBorder, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -540,19 +544,19 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
                 _buildKey(
                   icon: Icons.backspace_outlined,
                   textColor: _kTextHead,
-                  bgColor: _kBg,
+                  bgColor: const Color(0xFFF8FAFC),
                   onTap: _onDelete,
                 ),
                 _buildKey(
                   label: '%',
-                  textColor: _kSkyTag,
-                  bgColor: _kSkyTag.withValues(alpha: 0.12),
+                  textColor: _kPrimary,
+                  bgColor: _kPrimaryLight,
                   onTap: _onPercentTap,
                 ),
                 _buildKey(
                   label: '÷',
                   textColor: _kPrimary,
-                  bgColor: _kPrimary.withValues(alpha: 0.14),
+                  bgColor: _kPrimaryLight,
                   onTap: () => _onOperatorTap('÷'),
                 ),
               ],
@@ -567,7 +571,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
                 _buildKey(
                   label: '×',
                   textColor: _kPrimary,
-                  bgColor: _kPrimary.withValues(alpha: 0.14),
+                  bgColor: _kPrimaryLight,
                   onTap: () => _onOperatorTap('×'),
                 ),
               ],
@@ -582,7 +586,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
                 _buildKey(
                   label: '−',
                   textColor: _kPrimary,
-                  bgColor: _kPrimary.withValues(alpha: 0.14),
+                  bgColor: _kPrimaryLight,
                   onTap: () => _onOperatorTap('−'),
                 ),
               ],
@@ -597,7 +601,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
                 _buildKey(
                   label: '+',
                   textColor: _kPrimary,
-                  bgColor: _kPrimary.withValues(alpha: 0.14),
+                  bgColor: _kPrimaryLight,
                   onTap: () => _onOperatorTap('+'),
                 ),
               ],
@@ -628,7 +632,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
     String? label,
     IconData? icon,
     Color textColor = _kTextHead,
-    Color bgColor = _kBg,
+    Color bgColor = const Color(0xFFF8FAFC),
     bool isEquals = false,
     required VoidCallback onTap,
   }) {

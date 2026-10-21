@@ -5,15 +5,16 @@ import 'package:flutter_quill/flutter_quill.dart';
 import '../services/app_data_service.dart';
 
 // ── Notes screen design tokens (matching reference image) ────────────────────
-const _kNBg       = Color(0xFFF7F8FD); // light lavender-white background
-const _kNCard     = Color(0xFFFFFFFF); // pure white card
-const _kNPrimary  = Color(0xFF4854F5); // blue-violet accent
-const _kNPriDark  = Color(0xFF3B46EC); // gradient stop
-const _kNHead     = Color(0xFF1B1E36); // dark navy heading text
-const _kNSubHead  = Color(0xFF8A92A6); // subtitle / search hint text
-const _kNBody     = Color(0xFF71798E); // muted body preview text
-const _kNSep      = Color(0xFFEFF1F7); // hairline separator / card border
-const _kNSubject  = Color(0xFF4F5EF7); // vibrant blue subject text
+const _kNBg          = Color(0xFFFFFFFF); // clean white page background
+const _kNCard        = Color(0xFFFFFFFF); // pure white card
+const _kNPrimary     = Color(0xFF2563EB); // vibrant blue primary
+const _kNPriDark     = Color(0xFF1D4ED8); // deeper blue gradient stop
+const _kNPrimaryLight= Color(0xFFEFF6FF); // light blue tint
+const _kNHead        = Color(0xFF1E293B); // dark slate heading text
+const _kNSubHead     = Color(0xFF64748B); // subtitle / search hint text
+const _kNBody        = Color(0xFF64748B); // muted body preview text
+const _kNSep         = Color(0xFFE2E8F0); // subtle border
+const _kNSubject     = Color(0xFF2563EB); // vibrant blue subject text
 
 class NoteItem {
   final String id;
@@ -559,7 +560,7 @@ class _NotesScreenState extends State<NotesScreen> {
             decoration: BoxDecoration(
               color: _kNPrimary,
               gradient: const LinearGradient(
-                colors: [Color(0xFF4B5BFA), Color(0xFF404DF2)],
+                colors: [_kNPrimary, _kNPriDark],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -2368,13 +2369,13 @@ class NoteEditorScreenState extends State<NoteEditorScreen> {
                             width: 32,
                             height: 32,
                             decoration: BoxDecoration(
-                              color: const Color(0xFFEDE9FE),
+                              color: _kNPrimaryLight,
                               borderRadius: BorderRadius.circular(10),
                             ),
                             alignment: Alignment.center,
                             child: const Icon(
                               Icons.label_outline_rounded,
-                              color: Color(0xFF4F5EF7),
+                              color: _kNPrimary,
                               size: 18,
                             ),
                           ),
@@ -2386,7 +2387,7 @@ class NoteEditorScreenState extends State<NoteEditorScreen> {
                               style: const TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w600,
-                                color: Color(0xFF4F5EF7),
+                                color: _kNPrimary,
                                 letterSpacing: -0.1,
                               ),
                               decoration: const InputDecoration(
@@ -2404,7 +2405,7 @@ class NoteEditorScreenState extends State<NoteEditorScreen> {
                           ),
                           const Icon(
                             Icons.keyboard_arrow_down_rounded,
-                            color: Color(0xFF4F5EF7),
+                            color: _kNPrimary,
                             size: 24,
                           ),
                         ],
