@@ -821,4 +821,164 @@ void main() {
     expect(find.text('Tap "New Note" to capture your first idea.'), findsOneWidget);
     expect(find.text('0 notes saved'), findsOneWidget);
   });
+
+  testWidgets(
+      'Test automatic subject category counts, dynamic custom subjects, and category filtering',
+      (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues({});
+    NotesScreen.resetForTesting();
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: NotesScreen(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Verify initial header count
+    expect(find.text('3 notes saved'), findsOneWidget);
+
+    // Initial category counts from starter data
+    // Mathematics (1 note), Physics (1 note), Chemistry (1 note), English (0 notes)
+    expect(find.text('Physics'), findsWidgets);
+    expect(find.text('Mathematics'), findsWidgets);
+    expect(find.text('Chemistry'), findsWidgets);
+    expect(find.text('English'), findsWidgets);
+
+    // Filter by Mathematics
+    await tester.tap(find.text('Mathematics').first);
+    await tester.pumpAndSettle();
+
+    // Only Mathematics note should be displayed in Recent Notes
+    expect(find.text('Calculus Derivatives & Integrals'), findsOneWidget);
+    expect(find.text("Newton's Laws of Motion Summary"), findsNothing);
+    expect(find.text('Organic Chemistry Reactions'), findsNothing);
+
+    // Tap "See all" to open category selector sheet
+    await tester.tap(find.text('See all'));
+    await tester.pumpAndSettle();
+
+    // Verify category sheet is open with "All Notes" and all subjects
+    expect(find.text('Select a category to filter your notes'), findsOneWidget);
+    expect(find.text('All Notes'), findsOneWidget);
+
+    // Tap "All Notes" in the sheet to clear filter
+    await tester.tap(find.text('All Notes'));
+    await tester.pumpAndSettle();
+
+    // All 3 notes visible again
+    expect(find.text('Calculus Derivatives & Integrals'), findsOneWidget);
+    expect(find.text("Newton's Laws of Motion Summary"), findsOneWidget);
+    expect(find.text('Organic Chemistry Reactions'), findsOneWidget);
+
+    // Tap "See all" again to select a category from the complete sheet
+    await tester.tap(find.text('See all'));
+    await tester.pumpAndSettle();
+
+    // Select Chemistry from the complete sheet
+    await tester.tap(find.text('Chemistry').last);
+    await tester.pumpAndSettle();
+
+    // Now filtered to Chemistry note only
+    expect(find.text('Organic Chemistry Reactions'), findsOneWidget);
+    expect(find.text('Calculus Derivatives & Integrals'), findsNothing);
+    expect(find.text("Newton's Laws of Motion Summary"), findsNothing);
+
+    // Clear filter by tapping "See all" -> "All Notes"
+    await tester.tap(find.text('See all'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('All Notes'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Calculus Derivatives & Integrals'), findsOneWidget);
+    expect(find.text("Newton's Laws of Motion Summary"), findsOneWidget);
+    expect(find.text('Organic Chemistry Reactions'), findsOneWidget);
+  });
+
+  testWidgets(
+      'Test search across note titles and subjects with instant filter',
+      (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues({});
+    NotesScreen.resetForTesting();
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: NotesScreen(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Tap search icon button in header
+    await tester.tap(find.byIcon(Icons.search_rounded));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(TextField), findsOneWidget);
+
+    // Search by title substring: "Newton"
+    await tester.enterText(find.byType(TextField), 'Newton');
+    await tester.pumpAndSettle();
+
+    expect(find.text("Newton's Laws of Motion Summary"), findsOneWidget);
+    expect(find.text('Calculus Derivatives & Integrals'), findsNothing);
+    expect(find.text('Organic Chemistry Reactions'), findsNothing);
+
+    // Search by subject: "Chemistry"
+    await tester.enterText(find.byType(TextField), 'Chemistry');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Organic Chemistry Reactions'), findsOneWidget);
+    expect(find.text("Newton's Laws of Motion Summary"), findsNothing);
+    expect(find.text('Calculus Derivatives & Integrals'), findsNothing);
+
+    // Clear search
+    await tester.enterText(find.byType(TextField), '');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Calculus Derivatives & Integrals'), findsOneWidget);
+    expect(find.text("Newton's Laws of Motion Summary"), findsOneWidget);
+    expect(find.text('Organic Chemistry Reactions'), findsOneWidget);
+  });
+
+  testWidgets(
+      'Test 3-dot options menu Rename note functionality and persistence',
+      (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues({});
+    NotesScreen.resetForTesting();
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: NotesScreen(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Tap 3-dot options menu on Note 1
+    await tester.tap(find.byTooltip('Delete Note').first);
+    await tester.pumpAndSettle();
+
+    // Verify Rename and Delete options are visible
+    expect(find.text('Rename'), findsOneWidget);
+    expect(find.text('Delete'), findsOneWidget);
+
+    // Tap Rename
+    await tester.tap(find.text('Rename'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Rename Note'), findsOneWidget);
+
+    // Enter new title
+    await tester.enterText(
+        find.widgetWithText(TextField, 'Calculus Derivatives & Integrals'),
+        'Advanced Calculus & Complex Integrals');
+    await tester.pumpAndSettle();
+
+    // Tap Save
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    // Verify note is updated in list
+    expect(find.text('Advanced Calculus & Complex Integrals'), findsOneWidget);
+    expect(find.text('Calculus Derivatives & Integrals'), findsNothing);
+  });
 }
+

@@ -14,7 +14,6 @@ const _kNHead        = Color(0xFF1E293B); // dark slate heading text
 const _kNSubHead     = Color(0xFF64748B); // subtitle / search hint text
 const _kNBody        = Color(0xFF64748B); // muted body preview text
 const _kNSep         = Color(0xFFE2E8F0); // subtle border
-const _kNSubject     = Color(0xFF2563EB); // vibrant blue subject text
 
 class NoteItem {
   final String id;
@@ -115,6 +114,243 @@ class NotesScreen extends StatefulWidget {
   State<NotesScreen> createState() => _NotesScreenState();
 }
 
+enum _SortOrder { newestFirst, oldestFirst, titleAZ, titleZA }
+
+class _SubjectCategory {
+  final String name;
+  final IconData? icon;
+  final bool isAtom;
+  final Color iconColor;
+  final Color bgColor;
+  final Color borderColor;
+
+  const _SubjectCategory({
+    required this.name,
+    this.icon,
+    this.isAtom = false,
+    required this.iconColor,
+    required this.bgColor,
+    required this.borderColor,
+  });
+}
+
+class _AtomIconPainter extends CustomPainter {
+  final Color color;
+  const _AtomIconPainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.8;
+
+    // Nucleus
+    canvas.drawCircle(Offset(cx, cy), 3.0, Paint()..color = color);
+
+    // Orbit 1: horizontal
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(cx, cy),
+        width: size.width * 0.90,
+        height: size.height * 0.36,
+      ),
+      paint,
+    );
+
+    // Orbit 2: 60 degrees
+    canvas.save();
+    canvas.translate(cx, cy);
+    canvas.rotate(1.047);
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset.zero,
+        width: size.width * 0.90,
+        height: size.height * 0.36,
+      ),
+      paint,
+    );
+    canvas.restore();
+
+    // Orbit 3: -60 degrees
+    canvas.save();
+    canvas.translate(cx, cy);
+    canvas.rotate(-1.047);
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset.zero,
+        width: size.width * 0.90,
+        height: size.height * 0.36,
+      ),
+      paint,
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _AtomIconPainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+
+class _NotesBannerArtworkPainter extends CustomPainter {
+  const _NotesBannerArtworkPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    // Center of artwork on the right side of the banner
+    final cx = w * 0.76;
+    final cy = h * 0.54;
+
+    // 1. Soft radial background glow
+    final glowPaint = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          const Color(0xFFBFDBFE).withValues(alpha: 0.60),
+          const Color(0xFFDBEAFE).withValues(alpha: 0.25),
+          Colors.transparent,
+        ],
+        stops: const [0.0, 0.65, 1.0],
+      ).createShader(Rect.fromCircle(center: Offset(cx, cy), radius: 68));
+    canvas.drawCircle(Offset(cx, cy), 68, glowPaint);
+
+    // 2. Angled Notepad
+    canvas.save();
+    canvas.translate(cx, cy);
+    canvas.rotate(-0.14); // ~ -8 degrees
+
+    // Notepad shadow
+    final padShadow = Paint()
+      ..color = const Color(0xFF1E3A8A).withValues(alpha: 0.12)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(-32, -42, 64, 82),
+        const Radius.circular(10),
+      ),
+      padShadow,
+    );
+
+    // Blue backing / border
+    final backPaint = Paint()..color = const Color(0xFF2563EB);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(-33, -43, 66, 86),
+        const Radius.circular(10),
+      ),
+      backPaint,
+    );
+
+    // White paper surface
+    final paperPaint = Paint()..color = Colors.white;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(-30, -40, 60, 80),
+        const Radius.circular(8),
+      ),
+      paperPaint,
+    );
+
+    // Spiral binding rings / holes
+    final dotPaint = Paint()..color = const Color(0xFF93C5FD);
+    for (int i = 0; i < 5; i++) {
+      canvas.drawCircle(Offset(-23, -28.0 + (i * 14.0)), 2.2, dotPaint);
+    }
+
+    // Ruled lines on paper
+    final linePaint = Paint()
+      ..color = const Color(0xFFDBEAFE)
+      ..strokeWidth = 2.0
+      ..strokeCap = StrokeCap.round;
+    for (int i = 0; i < 5; i++) {
+      final y = -28.0 + (i * 14.0);
+      canvas.drawLine(Offset(-14, y), Offset(22, y), linePaint);
+    }
+
+    canvas.restore();
+
+    // 3. Blue Pen / Stylus angled across notepad
+    canvas.save();
+    canvas.translate(cx + 12, cy + 8);
+    canvas.rotate(0.55); // ~31 degrees
+
+    // Pen shadow
+    final penShadow = Paint()
+      ..color = const Color(0xFF1E3A8A).withValues(alpha: 0.18)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(-4, -36, 8, 54),
+        const Radius.circular(4),
+      ),
+      penShadow,
+    );
+
+    // Pen barrel (gradient blue)
+    final penBodyPaint = Paint()
+      ..shader = const LinearGradient(
+        colors: [Color(0xFF3B82F6), Color(0xFF1D4ED8)],
+        begin: Alignment.centerLeft,
+        end: Alignment.centerRight,
+      ).createShader(const Rect.fromLTWH(-4, -36, 8, 54));
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(-4, -36, 8, 54),
+        const Radius.circular(4),
+      ),
+      penBodyPaint,
+    );
+
+    // Pen clip
+    final clipPaint = Paint()..color = const Color(0xFF93C5FD);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(3, -32, 2.5, 20),
+        const Radius.circular(1.5),
+      ),
+      clipPaint,
+    );
+
+    // Pen tip (pointed)
+    final tipPath = Path()
+      ..moveTo(-4, 18)
+      ..lineTo(4, 18)
+      ..lineTo(0, 27)
+      ..close();
+    final tipPaint = Paint()..color = const Color(0xFF1E293B);
+    canvas.drawPath(tipPath, tipPaint);
+
+    // Pen tip point
+    final tipPointPaint = Paint()..color = const Color(0xFF60A5FA);
+    canvas.drawCircle(const Offset(0, 27), 1.2, tipPointPaint);
+
+    canvas.restore();
+
+    // 4. Accent dashes / rays
+    final rayPaint = Paint()
+      ..color = const Color(0xFF3B82F6).withValues(alpha: 0.6)
+      ..strokeWidth = 2.0
+      ..strokeCap = StrokeCap.round;
+    // Left rays
+    canvas.drawLine(
+        Offset(cx - 48, cy - 20), Offset(cx - 40, cy - 16), rayPaint);
+    canvas.drawLine(
+        Offset(cx - 52, cy + 2), Offset(cx - 44, cy + 3), rayPaint);
+    // Right rays
+    canvas.drawLine(
+        Offset(cx + 42, cy - 24), Offset(cx + 48, cy - 28), rayPaint);
+    canvas.drawLine(
+        Offset(cx + 36, cy + 28), Offset(cx + 44, cy + 32), rayPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
 class _NotesScreenState extends State<NotesScreen> {
   // In-memory cache synced with AppDataService
   static List<NoteItem> _cachedNotes = List.from(AppDataService.instance.notes);
@@ -126,6 +362,11 @@ class _NotesScreenState extends State<NotesScreen> {
 
   late TextEditingController _searchController;
   late FocusNode _searchFocusNode;
+
+  String _searchQuery = '';
+  bool _isSearchOpen = false;
+  String? _selectedCategory;
+  _SortOrder _sortOrder = _SortOrder.newestFirst;
 
   @override
   void initState() {
@@ -179,19 +420,197 @@ class _NotesScreenState extends State<NotesScreen> {
     await AppDataService.instance.saveNotes(_cachedNotes);
   }
 
-  // ── search query ─────────────────────────────────────────────────────────
-  String _searchQuery = '';
+  // ── Category definitions & helpers ─────────────────────────────────────────
+
+  List<_SubjectCategory> _buildCategories() {
+    const standardList = [
+      _SubjectCategory(
+        name: 'Physics',
+        isAtom: true,
+        iconColor: Color(0xFF2563EB),
+        bgColor: Color(0xFFEFF6FF),
+        borderColor: Color(0xFFDBEAFE),
+      ),
+      _SubjectCategory(
+        name: 'Mathematics',
+        icon: Icons.calculate_rounded,
+        iconColor: Color(0xFF7C3AED),
+        bgColor: Color(0xFFF5F3FF),
+        borderColor: Color(0xFFEDE9FE),
+      ),
+      _SubjectCategory(
+        name: 'English',
+        icon: Icons.menu_book_rounded,
+        iconColor: Color(0xFF16A34A),
+        bgColor: Color(0xFFF0FDF4),
+        borderColor: Color(0xFFDCFCE7),
+      ),
+      _SubjectCategory(
+        name: 'Chemistry',
+        icon: Icons.biotech_rounded,
+        iconColor: Color(0xFFD97706),
+        bgColor: Color(0xFFFFFBEB),
+        borderColor: Color(0xFFFEF3C7),
+      ),
+      _SubjectCategory(
+        name: 'Biology',
+        icon: Icons.spa_rounded,
+        iconColor: Color(0xFF059669),
+        bgColor: Color(0xFFECFDF5),
+        borderColor: Color(0xFFD1FAE5),
+      ),
+      _SubjectCategory(
+        name: 'Computer Science',
+        icon: Icons.code_rounded,
+        iconColor: Color(0xFF2563EB),
+        bgColor: Color(0xFFEFF6FF),
+        borderColor: Color(0xFFDBEAFE),
+      ),
+      _SubjectCategory(
+        name: 'Urdu',
+        icon: Icons.translate_rounded,
+        iconColor: Color(0xFFDB2777),
+        bgColor: Color(0xFFFDF2F8),
+        borderColor: Color(0xFFFCE7F3),
+      ),
+      _SubjectCategory(
+        name: 'Others',
+        icon: Icons.more_horiz_rounded,
+        iconColor: Color(0xFF64748B),
+        bgColor: Color(0xFFF8FAFC),
+        borderColor: Color(0xFFE2E8F0),
+      ),
+    ];
+
+    // Discover any custom subjects from saved notes dynamically
+    final standardNames = standardList.map((c) => c.name.toLowerCase()).toSet();
+    final customCategories = <_SubjectCategory>[];
+    for (final note in _cachedNotes) {
+      final sub = note.subject.trim();
+      if (sub.isNotEmpty &&
+          !standardNames.contains(sub.toLowerCase()) &&
+          sub.toLowerCase() != 'general') {
+        standardNames.add(sub.toLowerCase());
+        customCategories.add(
+          _SubjectCategory(
+            name: sub,
+            icon: Icons.label_outline_rounded,
+            iconColor: const Color(0xFF0284C7),
+            bgColor: const Color(0xFFF0F9FF),
+            borderColor: const Color(0xFFE0F2FE),
+          ),
+        );
+      }
+    }
+
+    final othersIdx = standardList.indexWhere((c) => c.name == 'Others');
+    if (othersIdx >= 0) {
+      return [
+        ...standardList.sublist(0, othersIdx),
+        ...customCategories,
+        standardList[othersIdx],
+      ];
+    }
+    return [...standardList, ...customCategories];
+  }
+
+  int _getCategoryCount(String categoryName) {
+    if (categoryName == 'Others') {
+      const standardKnown = {
+        'physics',
+        'mathematics',
+        'math',
+        'maths',
+        'english',
+        'chemistry',
+        'biology',
+        'computer science',
+        'cs',
+        'computer',
+        'urdu',
+      };
+      return _cachedNotes.where((n) {
+        final s = n.subject.trim().toLowerCase();
+        return s == 'others' || s == 'general' || !standardKnown.contains(s);
+      }).length;
+    }
+
+    return _cachedNotes.where((n) {
+      final s = n.subject.trim().toLowerCase();
+      final cat = categoryName.trim().toLowerCase();
+      if (s == cat) return true;
+      if (cat == 'mathematics' && (s == 'math' || s == 'maths')) return true;
+      if (cat == 'computer science' && (s == 'cs' || s == 'computer')) {
+        return true;
+      }
+      return false;
+    }).length;
+  }
+
+  bool _matchesCategory(NoteItem note, String categoryName) {
+    if (categoryName == 'Others') {
+      const standardKnown = {
+        'physics',
+        'mathematics',
+        'math',
+        'maths',
+        'english',
+        'chemistry',
+        'biology',
+        'computer science',
+        'cs',
+        'computer',
+        'urdu',
+      };
+      final s = note.subject.trim().toLowerCase();
+      return s == 'others' || s == 'general' || !standardKnown.contains(s);
+    }
+    final s = note.subject.trim().toLowerCase();
+    final cat = categoryName.trim().toLowerCase();
+    if (s == cat) return true;
+    if (cat == 'mathematics' && (s == 'math' || s == 'maths')) return true;
+    if (cat == 'computer science' && (s == 'cs' || s == 'computer')) return true;
+    return false;
+  }
 
   List<NoteItem> get _filteredNotes {
-    final query = (_searchQuery as dynamic)?.toString().trim() ?? '';
-    if (query.isEmpty) return _cachedNotes;
-    final q = query.toLowerCase();
-    return _cachedNotes
-        .where((n) =>
-            (n.title as dynamic)?.toString().toLowerCase().contains(q) == true ||
-            (n.subject as dynamic)?.toString().toLowerCase().contains(q) == true ||
-            (n.content as dynamic)?.toString().toLowerCase().contains(q) == true)
-        .toList();
+    var list = List<NoteItem>.from(_cachedNotes);
+
+    // Apply category filter
+    if (_selectedCategory != null) {
+      list =
+          list.where((n) => _matchesCategory(n, _selectedCategory!)).toList();
+    }
+
+    // Apply search query
+    final query = _searchQuery.trim().toLowerCase();
+    if (query.isNotEmpty) {
+      list = list.where((n) {
+        final t = n.title.toLowerCase();
+        final s = n.subject.toLowerCase();
+        final c = n.content.toLowerCase();
+        return t.contains(query) || s.contains(query) || c.contains(query);
+      }).toList();
+    }
+
+    // Apply sorting
+    switch (_sortOrder) {
+      case _SortOrder.newestFirst:
+        break;
+      case _SortOrder.oldestFirst:
+        list = list.reversed.toList();
+        break;
+      case _SortOrder.titleAZ:
+        list.sort(
+            (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+        break;
+      case _SortOrder.titleZA:
+        list.sort(
+            (a, b) => b.title.toLowerCase().compareTo(a.title.toLowerCase()));
+        break;
+    }
+
+    return list;
   }
 
   Future<void> _showCreateNoteDialog() async {
@@ -208,7 +627,8 @@ class _NotesScreenState extends State<NotesScreen> {
           ),
           backgroundColor: _kNCard,
           elevation: 0,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(22, 24, 22, 20),
             child: Column(
@@ -369,6 +789,8 @@ class _NotesScreenState extends State<NotesScreen> {
           const SnackBar(
             content: Text('Note saved successfully!'),
             duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+            margin: EdgeInsets.fromLTRB(20, 0, 20, 8),
           ),
         );
       }
@@ -387,9 +809,424 @@ class _NotesScreenState extends State<NotesScreen> {
         const SnackBar(
           content: Text('Note deleted'),
           duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.fromLTRB(20, 0, 20, 8),
         ),
       );
     } catch (_) {}
+  }
+
+  Future<void> _showRenameDialog(NoteItem note) async {
+    final controller = TextEditingController(text: note.title);
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text(
+            'Rename Note',
+            style: TextStyle(fontWeight: FontWeight.w700, color: _kNHead),
+          ),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: InputDecoration(
+              hintText: 'Enter note title',
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: _kNSep),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final newTitle = controller.text.trim();
+                if (newTitle.isNotEmpty) {
+                  _renameNote(note.id, newTitle);
+                }
+                Navigator.pop(ctx);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _kNPrimary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _renameNote(String id, String newTitle) async {
+    setState(() {
+      final idx = _cachedNotes.indexWhere((n) => n.id == id);
+      if (idx >= 0) {
+        _cachedNotes[idx] = _cachedNotes[idx].copyWith(title: newTitle);
+      }
+    });
+    await _persistNotes();
+  }
+
+  void _showHeaderOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE2E8F0),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Note Options',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: _kNHead,
+                      ),
+                    ),
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.arrow_downward_rounded,
+                      color: _kNPrimary),
+                  title: const Text('Sort by Date (Newest first)'),
+                  trailing: _sortOrder == _SortOrder.newestFirst
+                      ? const Icon(Icons.check_rounded, color: _kNPrimary)
+                      : null,
+                  onTap: () {
+                    setState(() => _sortOrder = _SortOrder.newestFirst);
+                    Navigator.pop(ctx);
+                  },
+                ),
+                ListTile(
+                  leading:
+                      const Icon(Icons.arrow_upward_rounded, color: _kNPrimary),
+                  title: const Text('Sort by Date (Oldest first)'),
+                  trailing: _sortOrder == _SortOrder.oldestFirst
+                      ? const Icon(Icons.check_rounded, color: _kNPrimary)
+                      : null,
+                  onTap: () {
+                    setState(() => _sortOrder = _SortOrder.oldestFirst);
+                    Navigator.pop(ctx);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.sort_by_alpha_rounded,
+                      color: _kNPrimary),
+                  title: const Text('Sort by Title (A-Z)'),
+                  trailing: _sortOrder == _SortOrder.titleAZ
+                      ? const Icon(Icons.check_rounded, color: _kNPrimary)
+                      : null,
+                  onTap: () {
+                    setState(() => _sortOrder = _SortOrder.titleAZ);
+                    Navigator.pop(ctx);
+                  },
+                ),
+                if (_selectedCategory != null || _searchQuery.isNotEmpty)
+                  ListTile(
+                    leading:
+                        const Icon(Icons.clear_all_rounded, color: Colors.red),
+                    title: const Text('Clear All Filters'),
+                    onTap: () {
+                      setState(() {
+                        _selectedCategory = null;
+                        _searchQuery = '';
+                        _searchController.clear();
+                      });
+                      Navigator.pop(ctx);
+                    },
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showAllCategoriesSheet() {
+    final categories = _buildCategories();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Drag handle
+                Center(
+                  child: Container(
+                    width: 38,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE2E8F0),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // Title & Close Button
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text(
+                          'Subject Categories',
+                          style: TextStyle(
+                            fontSize: 19,
+                            fontWeight: FontWeight.w800,
+                            color: _kNHead,
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                        SizedBox(height: 3),
+                        Text(
+                          'Select a category to filter your notes',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: _kNSubHead,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded,
+                          size: 20, color: Color(0xFF64748B)),
+                      splashRadius: 20,
+                      padding: EdgeInsets.zero,
+                      constraints:
+                          const BoxConstraints(minWidth: 36, minHeight: 36),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
+
+                // Scrollable list of categories with "All Notes" at top
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.60,
+                  ),
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: Column(
+                      children: [
+                        // "All Notes" option
+                        _buildCategoryOptionTile(
+                          ctx: ctx,
+                          title: 'All Notes',
+                          subtitle: 'Show all notes',
+                          count: _cachedNotes.length,
+                          icon: Icons.grid_view_rounded,
+                          iconColor: _kNPrimary,
+                          bgColor: _kNPrimaryLight,
+                          borderColor: const Color(0xFFBFDBFE),
+                          isSelected: _selectedCategory == null,
+                          onTap: () {
+                            setState(() => _selectedCategory = null);
+                            Navigator.pop(ctx);
+                          },
+                        ),
+                        const SizedBox(height: 8),
+
+                        // List of categories
+                        ...categories.map((cat) {
+                          final count = _getCategoryCount(cat.name);
+                          final isSelected = _selectedCategory != null &&
+                              _selectedCategory!.toLowerCase() ==
+                                  cat.name.toLowerCase();
+
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: _buildCategoryOptionTile(
+                              ctx: ctx,
+                              title: cat.name,
+                              count: count,
+                              icon: cat.icon,
+                              isAtom: cat.isAtom,
+                              iconColor: cat.iconColor,
+                              bgColor: cat.bgColor,
+                              borderColor: cat.borderColor,
+                              isSelected: isSelected,
+                              onTap: () {
+                                setState(() => _selectedCategory = cat.name);
+                                Navigator.pop(ctx);
+                              },
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCategoryOptionTile({
+    required BuildContext ctx,
+    required String title,
+    String? subtitle,
+    required int count,
+    IconData? icon,
+    bool isAtom = false,
+    required Color iconColor,
+    required Color bgColor,
+    required Color borderColor,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          decoration: BoxDecoration(
+            color: isSelected ? _kNPrimaryLight : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isSelected ? _kNPrimary : _kNSep,
+              width: isSelected ? 1.8 : 1.0,
+            ),
+          ),
+          child: Row(
+            children: [
+              // Circular icon
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: bgColor,
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: isAtom
+                    ? SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CustomPaint(
+                          painter: _AtomIconPainter(iconColor),
+                        ),
+                      )
+                    : Icon(
+                        icon ?? Icons.label_outline_rounded,
+                        color: iconColor,
+                        size: 20,
+                      ),
+              ),
+              const SizedBox(width: 12),
+
+              // Title & Subtitle
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        fontWeight:
+                            isSelected ? FontWeight.w700 : FontWeight.w600,
+                        color: _kNHead,
+                      ),
+                    ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: _kNSubHead,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
+              // Count badge
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '$count note${count == 1 ? '' : 's'}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: _kNSubHead,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // Selection indicator
+              Icon(
+                isSelected
+                    ? Icons.check_circle_rounded
+                    : Icons.radio_button_unchecked_rounded,
+                color: isSelected ? _kNPrimary : const Color(0xFFCBD5E1),
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -404,233 +1241,649 @@ class _NotesScreenState extends State<NotesScreen> {
       backgroundColor: _kNBg,
       body: SafeArea(
         bottom: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Header (Title + Count & Circular Search Icon) ─────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'My Notes',
-                        style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.w800,
-                          color: _kNHead,
-                          letterSpacing: -0.6,
-                          height: 1.1,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        '${_cachedNotes.length} note${_cachedNotes.length == 1 ? '' : 's'} saved',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: _kNSubHead,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                  // Circular search icon at top right
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: _kNCard,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.04),
-                          blurRadius: 10,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                      border: Border.all(color: _kNSep, width: 1),
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.search_rounded,
-                          size: 20, color: Color(0xFF6B7280)),
-                      onPressed: () {
-                        _searchFocusNode.requestFocus();
-                      },
-                      splashRadius: 22,
-                      padding: EdgeInsets.zero,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.only(bottom: 100),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── 1. Header ──────────────────────────────────────────────
+              _buildHeader(),
 
-            const SizedBox(height: 18),
+              // ── Optional Search Bar ────────────────────────────────────
+              if (_isSearchOpen || _searchQuery.isNotEmpty) _buildSearchBar(),
 
-            // ── Wide, rounded Search Bar ─────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Container(
-                height: 48,
-                decoration: BoxDecoration(
-                  color: _kNCard,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.03),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                  border: Border.all(color: _kNSep, width: 1),
-                ),
-                child: TextField(
-                  controller: _searchController,
-                  focusNode: _searchFocusNode,
-                  onChanged: (v) => setState(() => _searchQuery = v),
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: _kNHead,
-                    fontWeight: FontWeight.w400,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Search notes...',
-                    hintStyle: const TextStyle(
-                      color: _kNSubHead,
-                      fontSize: 14,
-                    ),
-                    prefixIcon: const Icon(Icons.search_rounded,
-                        color: _kNSubHead, size: 20),
-                    suffixIcon: _searchQuery.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.close_rounded,
-                                size: 18, color: _kNSubHead),
-                            onPressed: () {
-                              _searchController.clear();
-                              setState(() => _searchQuery = '');
-                            },
-                          )
-                        : null,
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                ),
-              ),
-            ),
+              const SizedBox(height: 2),
 
-            const SizedBox(height: 18),
+              // ── 2. Notes Banner ────────────────────────────────────────
+              _buildBanner(),
 
-            // ── Notes List (Vertical Stack) ──────────────────────────────────
-            Expanded(
-              child: notes.isEmpty
-                  ? _buildEmptyState()
-                  : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
-                      physics: const BouncingScrollPhysics(),
-                      itemCount: notes.length,
-                      itemBuilder: (context, index) {
-                        final note = notes[index];
-                        return Padding(
-                          key: ValueKey(note.id),
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: _NoteCard(
-                            key: ValueKey('note_card_${note.id}'),
-                            note: note,
-                            onTap: () => _openNoteEditor(note: note),
-                            onDelete: () => _deleteNote(note.id),
-                          ),
-                        );
-                      },
-                    ),
-            ),
-          ],
+              const SizedBox(height: 14),
+
+              // ── 3. Subject Categories ──────────────────────────────────
+              _buildSubjectCategoriesSection(),
+
+              const SizedBox(height: 14),
+
+              // ── 4. Compact Recent Notes ────────────────────────────────
+              _buildRecentNotesSection(notes),
+            ],
+          ),
         ),
       ),
+    );
+  }
 
-      // ── "+ New Note" Prominent Button ────────────────────────────────────
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 6),
-        child: SizedBox(
-          width: double.infinity,
-          height: 52,
-          child: DecoratedBox(
+  Widget _buildHeader() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 8, 20, 8),
+      child: Row(
+        children: [
+          // Back button
+          IconButton(
+            icon: const Icon(Icons.chevron_left_rounded,
+                size: 28, color: _kNHead),
+            splashRadius: 22,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            onPressed: () {
+              if (Navigator.canPop(context)) {
+                Navigator.maybePop(context);
+              }
+            },
+          ),
+          const SizedBox(width: 4),
+
+          // Book Logo Squircle
+          Container(
+            width: 38,
+            height: 38,
             decoration: BoxDecoration(
-              color: _kNPrimary,
               gradient: const LinearGradient(
                 colors: [_kNPrimary, _kNPriDark],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: _kNPrimary.withValues(alpha: 0.35),
-                  blurRadius: 16,
-                  offset: const Offset(0, 6),
+                  color: _kNPrimary.withValues(alpha: 0.28),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
                 ),
               ],
             ),
-            child: ElevatedButton(
-              key: const Key('create_note_button'),
-              onPressed: _showCreateNoteDialog,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.transparent,
-                shadowColor: Colors.transparent,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+            child: const Icon(
+              Icons.menu_book_rounded,
+              color: Colors.white,
+              size: 19,
+            ),
+          ),
+          const SizedBox(width: 12),
+
+          // Title & Note Count
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'My Notes',
+                  style: TextStyle(
+                    fontSize: 21,
+                    fontWeight: FontWeight.w800,
+                    color: _kNHead,
+                    letterSpacing: -0.4,
+                    height: 1.15,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${_cachedNotes.length} note${_cachedNotes.length == 1 ? '' : 's'} saved',
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: _kNSubHead,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Circular Search Icon Button
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              shape: BoxShape.circle,
+              border: Border.all(color: _kNSep, width: 1),
+            ),
+            child: IconButton(
+              icon: Icon(
+                _isSearchOpen ? Icons.close_rounded : Icons.search_rounded,
+                size: 19,
+                color: _isSearchOpen ? _kNPrimary : const Color(0xFF64748B),
+              ),
+              splashRadius: 20,
+              padding: EdgeInsets.zero,
+              onPressed: () {
+                setState(() {
+                  _isSearchOpen = !_isSearchOpen;
+                  if (!_isSearchOpen) {
+                    _searchController.clear();
+                    _searchQuery = '';
+                  }
+                });
+                if (_isSearchOpen) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    _searchFocusNode.requestFocus();
+                  });
+                }
+              },
+            ),
+          ),
+          const SizedBox(width: 8),
+
+          // Circular Options Icon Button
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              shape: BoxShape.circle,
+              border: Border.all(color: _kNSep, width: 1),
+            ),
+            child: IconButton(
+              icon: const Icon(
+                Icons.more_horiz_rounded,
+                size: 19,
+                color: Color(0xFF64748B),
+              ),
+              splashRadius: 20,
+              padding: EdgeInsets.zero,
+              onPressed: _showHeaderOptions,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+      child: Container(
+        height: 44,
+        decoration: BoxDecoration(
+          color: _kNCard,
+          borderRadius: BorderRadius.circular(14),
+          border:
+              Border.all(color: _kNPrimary.withValues(alpha: 0.5), width: 1.2),
+          boxShadow: [
+            BoxShadow(
+              color: _kNPrimary.withValues(alpha: 0.08),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: TextField(
+          controller: _searchController,
+          focusNode: _searchFocusNode,
+          onChanged: (v) => setState(() => _searchQuery = v),
+          style: const TextStyle(
+            fontSize: 13.5,
+            color: _kNHead,
+            fontWeight: FontWeight.w500,
+          ),
+          decoration: InputDecoration(
+            hintText: 'Search notes by title or subject...',
+            hintStyle: const TextStyle(
+              color: _kNSubHead,
+              fontSize: 13.5,
+            ),
+            prefixIcon: const Icon(Icons.search_rounded,
+                color: _kNPrimary, size: 19),
+            suffixIcon: _searchQuery.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.close_rounded,
+                        size: 17, color: _kNSubHead),
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() => _searchQuery = '');
+                    },
+                  )
+                : null,
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(vertical: 12),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBanner() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        width: double.infinity,
+        height: 122,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFEFF6FF), Color(0xFFE0EFFF)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: const Color(0xFFDBEAFE),
+            width: 1.0,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF2563EB).withValues(alpha: 0.04),
+              blurRadius: 14,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Stack(
+            children: [
+              // Background notepad + pen artwork
+              const Positioned.fill(
+                child: CustomPaint(
+                  painter: _NotesBannerArtworkPainter(),
                 ),
               ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  const Opacity(
-                    opacity: 0,
-                    child: Text('Create Note', style: TextStyle(fontSize: 1)),
+
+              // Left side texts
+              Positioned(
+                left: 18,
+                top: 14,
+                bottom: 14,
+                right: 110,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Sparkle + "Organize your thoughts"
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Icon(Icons.auto_awesome, size: 13, color: _kNPrimary),
+                        SizedBox(width: 4),
+                        Text(
+                          'Organize your thoughts',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: _kNPrimary,
+                            letterSpacing: -0.1,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    // "Notes make learning easier."
+                    const Text(
+                      'Notes make\nlearning easier.',
+                      style: TextStyle(
+                        fontSize: 17.5,
+                        fontWeight: FontWeight.w800,
+                        color: _kNHead,
+                        height: 1.16,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    // "Keep your notes, stay focused."
+                    const Text(
+                      'Keep your notes, stay focused.',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w500,
+                        color: _kNSubHead,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Right side circular Add Note (+) button
+              Positioned(
+                right: 16,
+                top: 14,
+                child: Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _kNPrimary,
+                    boxShadow: [
+                      BoxShadow(
+                        color: _kNPrimary.withValues(alpha: 0.35),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
                   ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      key: const Key('create_note_button'),
+                      customBorder: const CircleBorder(),
+                      onTap: _showCreateNoteDialog,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: const [
+                          Opacity(
+                            opacity: 0,
+                            child:
+                                Text('New Note', style: TextStyle(fontSize: 1)),
+                          ),
+                          Icon(Icons.add_rounded,
+                              color: Colors.white, size: 22),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubjectCategoriesSection() {
+    final categories = _buildCategories();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Title row
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Subject Categories',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: _kNHead,
+                  letterSpacing: -0.3,
+                ),
+              ),
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _showAllCategoriesSheet,
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: const [
-                      Icon(Icons.add_rounded, size: 22, color: Colors.white),
-                      SizedBox(width: 6),
                       Text(
-                        'New Note',
+                        'See all',
                         style: TextStyle(
+                          fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          fontSize: 16,
-                          color: Colors.white,
-                          letterSpacing: -0.2,
+                          color: _kNPrimary,
+                        ),
+                      ),
+                      SizedBox(width: 2),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        size: 17,
+                        color: _kNPrimary,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 10),
+
+        // Horizontally scrollable row
+        SizedBox(
+          height: 104,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: categories.length,
+            itemBuilder: (context, index) {
+              final cat = categories[index];
+              final count = _getCategoryCount(cat.name);
+              final isSelected = _selectedCategory != null &&
+                  _selectedCategory!.toLowerCase() == cat.name.toLowerCase();
+
+              return Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      if (isSelected) {
+                        _selectedCategory = null;
+                      } else {
+                        _selectedCategory = cat.name;
+                      }
+                    });
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    width: 98,
+                    padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+                    decoration: BoxDecoration(
+                      color: cat.bgColor,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: isSelected ? _kNPrimary : cat.borderColor,
+                        width: isSelected ? 2.0 : 1.0,
+                      ),
+                      boxShadow: isSelected
+                          ? [
+                              BoxShadow(
+                                color: _kNPrimary.withValues(alpha: 0.16),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Circular Icon
+                        Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.03),
+                                blurRadius: 5,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          alignment: Alignment.center,
+                          child: cat.isAtom
+                              ? SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CustomPaint(
+                                    painter: _AtomIconPainter(cat.iconColor),
+                                  ),
+                                )
+                              : Icon(
+                                  cat.icon ?? Icons.label_outline_rounded,
+                                  color: cat.iconColor,
+                                  size: 18,
+                                ),
+                        ),
+                        const Spacer(),
+                        // Subject Label
+                        Text(
+                          cat.name,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: _kNHead,
+                            letterSpacing: -0.2,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        // Count + chevron
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '$count note${count == 1 ? '' : 's'}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                  color: _kNSubHead,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const Icon(
+                              Icons.chevron_right_rounded,
+                              size: 14,
+                              color: Color(0xFF94A3B8),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRecentNotesSection(List<NoteItem> notes) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Section title + active filter tag
+          Row(
+            children: [
+              const Text(
+                'Recent Notes',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: _kNHead,
+                  letterSpacing: -0.3,
+                ),
+              ),
+              if (_selectedCategory != null) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                  decoration: BoxDecoration(
+                    color: _kNPrimaryLight,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFDBEAFE)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _selectedCategory!,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: _kNPrimary,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      GestureDetector(
+                        onTap: () => setState(() => _selectedCategory = null),
+                        child: const Icon(
+                          Icons.close_rounded,
+                          size: 13,
+                          color: _kNPrimary,
                         ),
                       ),
                     ],
                   ),
-                ],
-              ),
-            ),
+                ),
+              ],
+            ],
           ),
-        ),
+
+          const SizedBox(height: 10),
+
+          if (notes.isEmpty)
+            _buildEmptyState()
+          else
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: notes.length,
+              itemBuilder: (context, index) {
+                final note = notes[index];
+                return Padding(
+                  key: ValueKey(note.id),
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _NoteCard(
+                    key: ValueKey('note_card_${note.id}'),
+                    note: note,
+                    onTap: () => _openNoteEditor(note: note),
+                    onDelete: () => _deleteNote(note.id),
+                    onRename: () => _showRenameDialog(note),
+                  ),
+                );
+              },
+            ),
+        ],
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 
   Widget _buildEmptyState() {
-    return Center(
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            width: 80,
-            height: 80,
+            width: 72,
+            height: 72,
             decoration: BoxDecoration(
-              color: _kNPrimary.withValues(alpha: 0.10),
+              color: _kNPrimary.withValues(alpha: 0.08),
               shape: BoxShape.circle,
             ),
-            child: Icon(Icons.note_alt_outlined,
-                size: 38, color: _kNPrimary.withValues(alpha: 0.6)),
+            child: const Icon(
+              Icons.note_alt_outlined,
+              size: 34,
+              color: _kNPrimary,
+            ),
           ),
           const SizedBox(height: 16),
           const Text(
@@ -644,7 +1897,11 @@ class _NotesScreenState extends State<NotesScreen> {
           const SizedBox(height: 6),
           const Text(
             'Tap "New Note" to capture your first idea.',
-            style: TextStyle(color: _kNBody, fontSize: 14),
+            style: TextStyle(
+              color: _kNBody,
+              fontSize: 14,
+            ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -2616,465 +3873,220 @@ class NoteEditorScreenState extends State<NoteEditorScreen> {
 
 // ─── _NoteCard ────────────────────────────────────────────────────────────────
 
-// ─── Physics Motion Trail CustomPainter ───────────────────────────────────────
-class _PhysicsMotionPainter extends CustomPainter {
+
+class _SubjectStyle {
   final Color color;
-  _PhysicsMotionPainter(this.color);
+  final Color bgColor;
+  final IconData icon;
+  final bool isAtom;
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    final strokePaint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0
-      ..strokeCap = StrokeCap.round;
+  const _SubjectStyle({
+    required this.color,
+    required this.bgColor,
+    this.icon = Icons.description_rounded,
+    this.isAtom = false,
+  });
+}
 
-    final circlePaint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0;
+_SubjectStyle _getSubjectStyle(String subject, String title) {
+  final text = '${subject.toLowerCase()} ${title.toLowerCase()}';
 
-    // Main particle circle at top-right
-    final circleCenter = Offset(size.width * 0.72, size.height * 0.38);
-    final circleRadius = size.width * 0.22;
-    canvas.drawCircle(circleCenter, circleRadius, circlePaint);
-
-    // 3 trailing speed lines to the bottom-left
-    canvas.drawLine(
-      Offset(size.width * 0.44, size.height * 0.58),
-      Offset(size.width * 0.18, size.height * 0.78),
-      strokePaint,
-    );
-    canvas.drawLine(
-      Offset(size.width * 0.38, size.height * 0.40),
-      Offset(size.width * 0.12, size.height * 0.60),
-      strokePaint,
-    );
-    canvas.drawLine(
-      Offset(size.width * 0.60, size.height * 0.72),
-      Offset(size.width * 0.36, size.height * 0.90),
-      strokePaint,
+  if (text.contains('physic') ||
+      text.contains('motion') ||
+      text.contains('newton') ||
+      text.contains('quantum')) {
+    return const _SubjectStyle(
+      color: Color(0xFF2563EB),
+      bgColor: Color(0xFFEFF6FF),
+      isAtom: true,
     );
   }
 
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  if (text.contains('math') ||
+      text.contains('calculus') ||
+      text.contains('algebra') ||
+      text.contains('integral')) {
+    return const _SubjectStyle(
+      color: Color(0xFF7C3AED),
+      bgColor: Color(0xFFF5F3FF),
+      icon: Icons.calculate_rounded,
+    );
+  }
+
+  if (text.contains('eng') ||
+      text.contains('essay') ||
+      text.contains('lit') ||
+      text.contains('poem')) {
+    return const _SubjectStyle(
+      color: Color(0xFF16A34A),
+      bgColor: Color(0xFFF0FDF4),
+      icon: Icons.menu_book_rounded,
+    );
+  }
+
+  if (text.contains('chem') ||
+      text.contains('organic') ||
+      text.contains('reaction')) {
+    return const _SubjectStyle(
+      color: Color(0xFFD97706),
+      bgColor: Color(0xFFFFFBEB),
+      icon: Icons.biotech_rounded,
+    );
+  }
+
+  if (text.contains('bio') || text.contains('cell') || text.contains('dna')) {
+    return const _SubjectStyle(
+      color: Color(0xFF059669),
+      bgColor: Color(0xFFECFDF5),
+      icon: Icons.spa_rounded,
+    );
+  }
+
+  if (text.contains('code') ||
+      text.contains('cs') ||
+      text.contains('computer')) {
+    return const _SubjectStyle(
+      color: Color(0xFF2563EB),
+      bgColor: Color(0xFFEFF6FF),
+      icon: Icons.code_rounded,
+    );
+  }
+
+  if (text.contains('urdu')) {
+    return const _SubjectStyle(
+      color: Color(0xFFDB2777),
+      bgColor: Color(0xFFFDF2F8),
+      icon: Icons.translate_rounded,
+    );
+  }
+
+  final hash = text.hashCode.abs() % 4;
+  if (hash == 0) {
+    return const _SubjectStyle(
+      color: Color(0xFF2563EB),
+      bgColor: Color(0xFFEFF6FF),
+      icon: Icons.description_rounded,
+    );
+  } else if (hash == 1) {
+    return const _SubjectStyle(
+      color: Color(0xFF7C3AED),
+      bgColor: Color(0xFFF5F3FF),
+      icon: Icons.bookmark_outline_rounded,
+    );
+  } else if (hash == 2) {
+    return const _SubjectStyle(
+      color: Color(0xFF0D9488),
+      bgColor: Color(0xFFF0FDFA),
+      icon: Icons.edit_note_rounded,
+    );
+  } else {
+    return const _SubjectStyle(
+      color: Color(0xFF64748B),
+      bgColor: Color(0xFFF8FAFC),
+      icon: Icons.description_rounded,
+    );
+  }
 }
 
-// ─── _NoteCard ────────────────────────────────────────────────────────────────
-
-class _FallbackIcon {
-  final Color bgColor;
-  final IconData icon;
-  final Color iconColor;
-
-  const _FallbackIcon(this.bgColor, this.icon, this.iconColor);
+String _estimateNoteSize(NoteItem note) {
+  final bytes = utf8
+      .encode(note.title + note.subject + note.content + (note.formatting ?? ''))
+      .length;
+  final kb = (bytes / 1024.0) + 1.2;
+  return '${kb.toStringAsFixed(1)} KB';
 }
 
 class _NoteCard extends StatelessWidget {
   final NoteItem note;
   final VoidCallback onTap;
   final VoidCallback? onDelete;
+  final VoidCallback? onRename;
 
   const _NoteCard({
     super.key,
     required this.note,
     required this.onTap,
     this.onDelete,
+    this.onRename,
   });
 
-  Widget _buildCircleIcon(String title, String subject) {
-    final text = '${title.toLowerCase()} ${subject.toLowerCase()}';
-
-    // Mathematics
-    if (text.contains('math') ||
-        text.contains('calculus') ||
-        text.contains('algebra') ||
-        text.contains('derivative') ||
-        text.contains('integral') ||
-        text.contains('geometry') ||
-        text.contains('trig') ||
-        text.contains('matrix') ||
-        text.contains('matrices') ||
-        text.contains('vector') ||
-        text.contains('eigen') ||
-        text.contains('statistic') ||
-        text.contains('probability') ||
-        text.contains('arithmetic') ||
-        text.contains('equation')) {
-      return Container(
-        width: 48,
-        height: 48,
-        decoration: const BoxDecoration(
-          color: Color(0xFFEDE9FE), // pastel purple
-          shape: BoxShape.circle,
-        ),
-        alignment: Alignment.center,
-        child: const Text(
-          '∫',
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF4F46E5),
-            height: 1.0,
-          ),
-        ),
-      );
-    }
-
-    // Physics
-    if (text.contains('physic') ||
-        text.contains('mechanic') ||
-        text.contains('motion') ||
-        text.contains('newton') ||
-        text.contains('gravity') ||
-        text.contains('force') ||
-        text.contains('velocity') ||
-        text.contains('speed') ||
-        text.contains('energy') ||
-        text.contains('kinetic') ||
-        text.contains('quantum') ||
-        text.contains('optics') ||
-        text.contains('thermodynamic') ||
-        text.contains('astronomy') ||
-        text.contains('relativity') ||
-        text.contains('wave') ||
-        text.contains('electric') ||
-        text.contains('magnetic') ||
-        text.contains('circuit')) {
-      return Container(
-        width: 48,
-        height: 48,
-        decoration: const BoxDecoration(
-          color: Color(0xFFE2F0FD), // pastel light blue
-          shape: BoxShape.circle,
-        ),
-        alignment: Alignment.center,
-        child: SizedBox(
-          width: 22,
-          height: 22,
-          child: CustomPaint(
-            painter: _PhysicsMotionPainter(const Color(0xFF3B82F6)),
-          ),
-        ),
-      );
-    }
-
-    // Chemistry
-    if (text.contains('chem') ||
-        text.contains('organic') ||
-        text.contains('inorganic') ||
-        text.contains('reaction') ||
-        text.contains('molecule') ||
-        text.contains('atom') ||
-        text.contains('acid') ||
-        text.contains('base') ||
-        text.contains('compound') ||
-        text.contains('polymer') ||
-        text.contains('titration') ||
-        text.contains('periodic') ||
-        text.contains('element')) {
-      return Container(
-        width: 48,
-        height: 48,
-        decoration: const BoxDecoration(
-          color: Color(0xFFE3F5EC), // pastel mint green
-          shape: BoxShape.circle,
-        ),
-        alignment: Alignment.center,
-        child: const Icon(
-          Icons.science_rounded,
-          color: Color(0xFF229A71),
-          size: 22,
-        ),
-      );
-    }
-
-    // Biology
-    if (text.contains('bio') ||
-        text.contains('cell') ||
-        text.contains('genetic') ||
-        text.contains('dna') ||
-        text.contains('rna') ||
-        text.contains('plant') ||
-        text.contains('animal') ||
-        text.contains('organism') ||
-        text.contains('anatomy') ||
-        text.contains('medicine') ||
-        text.contains('ecology') ||
-        text.contains('eco')) {
-      return Container(
-        width: 48,
-        height: 48,
-        decoration: const BoxDecoration(
-          color: Color(0xFFE8F6ED), // pastel sage
-          shape: BoxShape.circle,
-        ),
-        alignment: Alignment.center,
-        child: const Icon(
-          Icons.eco_rounded,
-          color: Color(0xFF10B981),
-          size: 22,
-        ),
-      );
-    }
-
-    // Computer Science / Coding
-    if (text.contains('code') ||
-        text.contains('coding') ||
-        text.contains('program') ||
-        text.contains('computer') ||
-        text.contains('software') ||
-        text.contains('developer') ||
-        text.contains('java') ||
-        text.contains('python') ||
-        text.contains('flutter') ||
-        text.contains('dart') ||
-        text.contains('html') ||
-        text.contains('css') ||
-        text.contains('javascript') ||
-        text.contains('algorithm') ||
-        text.contains('data structure') ||
-        text.contains('database') ||
-        text.contains('sql') ||
-        text.contains('ai') ||
-        text.contains('machine learning')) {
-      return Container(
-        width: 48,
-        height: 48,
-        decoration: const BoxDecoration(
-          color: Color(0xFFE6EFFD), // pastel soft blue
-          shape: BoxShape.circle,
-        ),
-        alignment: Alignment.center,
-        child: const Icon(
-          Icons.terminal_rounded,
-          color: Color(0xFF2563EB),
-          size: 22,
-        ),
-      );
-    }
-
-    // History & Civics
-    if (text.contains('hist') ||
-        text.contains('history') ||
-        text.contains('war') ||
-        text.contains('revolution') ||
-        text.contains('empire') ||
-        text.contains('politic') ||
-        text.contains('civic') ||
-        text.contains('government') ||
-        text.contains('constitution')) {
-      return Container(
-        width: 48,
-        height: 48,
-        decoration: const BoxDecoration(
-          color: Color(0xFFFEF2E8), // pastel peach
-          shape: BoxShape.circle,
-        ),
-        alignment: Alignment.center,
-        child: const Icon(
-          Icons.account_balance_rounded,
-          color: Color(0xFFD97706),
-          size: 22,
-        ),
-      );
-    }
-
-    // English & Literature
-    if (text.contains('eng') ||
-        text.contains('english') ||
-        text.contains('lit') ||
-        text.contains('literature') ||
-        text.contains('essay') ||
-        text.contains('poetry') ||
-        text.contains('poem') ||
-        text.contains('grammar') ||
-        text.contains('novel') ||
-        text.contains('book') ||
-        text.contains('author') ||
-        text.contains('language')) {
-      return Container(
-        width: 48,
-        height: 48,
-        decoration: const BoxDecoration(
-          color: Color(0xFFFFF0F5), // pastel blush
-          shape: BoxShape.circle,
-        ),
-        alignment: Alignment.center,
-        child: const Icon(
-          Icons.menu_book_rounded,
-          color: Color(0xFFE11D48),
-          size: 22,
-        ),
-      );
-    }
-
-    // Economics & Business
-    if (text.contains('econ') ||
-        text.contains('business') ||
-        text.contains('finance') ||
-        text.contains('money') ||
-        text.contains('market') ||
-        text.contains('trade') ||
-        text.contains('accounting') ||
-        text.contains('commerce')) {
-      return Container(
-        width: 48,
-        height: 48,
-        decoration: const BoxDecoration(
-          color: Color(0xFFE2F6F5), // pastel teal
-          shape: BoxShape.circle,
-        ),
-        alignment: Alignment.center,
-        child: const Icon(
-          Icons.trending_up_rounded,
-          color: Color(0xFF0D9488),
-          size: 22,
-        ),
-      );
-    }
-
-    // Geography & Earth
-    if (text.contains('geog') ||
-        text.contains('earth') ||
-        text.contains('map') ||
-        text.contains('climate') ||
-        text.contains('geology') ||
-        text.contains('ocean')) {
-      return Container(
-        width: 48,
-        height: 48,
-        decoration: const BoxDecoration(
-          color: Color(0xFFE0F2FE), // pastel sky
-          shape: BoxShape.circle,
-        ),
-        alignment: Alignment.center,
-        child: const Icon(
-          Icons.public_rounded,
-          color: Color(0xFF0284C7),
-          size: 22,
-        ),
-      );
-    }
-
-    // Art, Music & Design
-    if (text.contains('art') ||
-        text.contains('music') ||
-        text.contains('design') ||
-        text.contains('draw') ||
-        text.contains('paint') ||
-        text.contains('sketch') ||
-        text.contains('song')) {
-      return Container(
-        width: 48,
-        height: 48,
-        decoration: const BoxDecoration(
-          color: Color(0xFFFCE7F3), // pastel rose
-          shape: BoxShape.circle,
-        ),
-        alignment: Alignment.center,
-        child: const Icon(
-          Icons.palette_rounded,
-          color: Color(0xFFDB2777),
-          size: 22,
-        ),
-      );
-    }
-
-    // Psychology & Philosophy
-    if (text.contains('psych') ||
-        text.contains('mind') ||
-        text.contains('brain') ||
-        text.contains('philosophy') ||
-        text.contains('ethics')) {
-      return Container(
-        width: 48,
-        height: 48,
-        decoration: const BoxDecoration(
-          color: Color(0xFFF3E8FF), // pastel purple
-          shape: BoxShape.circle,
-        ),
-        alignment: Alignment.center,
-        child: const Icon(
-          Icons.psychology_rounded,
-          color: Color(0xFF7C3AED),
-          size: 22,
-        ),
-      );
-    }
-
-    // Dynamic pastel fallback based on hash so any custom note gets a unique, beautiful icon
-    final hash = (title + subject).hashCode.abs();
-    final fallbacks = [
-      const _FallbackIcon(Color(0xFFEEF0FF), Icons.lightbulb_outline_rounded, Color(0xFF5B6CF9)),
-      const _FallbackIcon(Color(0xFFE0F7FA), Icons.edit_note_rounded, Color(0xFF00ACC1)),
-      const _FallbackIcon(Color(0xFFFEF9C3), Icons.bookmark_outline_rounded, Color(0xFFCA8A04)),
-      const _FallbackIcon(Color(0xFFDCFCE7), Icons.checklist_rounded, Color(0xFF16A34A)),
-      const _FallbackIcon(Color(0xFFF3E8FF), Icons.description_rounded, Color(0xFF9333EA)),
-    ];
-    final chosen = fallbacks[hash % fallbacks.length];
-
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        color: chosen.bgColor,
-        shape: BoxShape.circle,
-      ),
-      alignment: Alignment.center,
-      child: Icon(
-        chosen.icon,
-        color: chosen.iconColor,
-        size: 22,
-      ),
-    );
-  }
-
-  void _showDeleteDialog(BuildContext context) {
-    showDialog(
+  void _showNoteOptions(BuildContext context) {
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: const Text('Delete Note'),
-        content: Text('Are you sure you want to delete "${note.title}"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              onDelete?.call();
-            },
-            style: TextButton.styleFrom(
-              foregroundColor: const Color(0xFFEF4444),
-            ),
-            child: const Text('Delete',
-                style: TextStyle(fontWeight: FontWeight.w600)),
-          ),
-        ],
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE2E8F0),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          note.title,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: _kNHead,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.edit_outlined, color: _kNPrimary),
+                  title: const Text('Rename',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w600, color: _kNHead)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    onRename?.call();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.delete_outline_rounded,
+                      color: Color(0xFFEF4444)),
+                  title: const Text('Delete',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFFEF4444))),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    onDelete?.call();
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final rawContent = (note.content as dynamic)?.toString() ?? '';
-    final stripped = rawContent
-        .replaceAll('**', '')
-        .replaceAll('<u>', '')
-        .replaceAll('</u>', '')
-        .replaceAll(RegExp(r'(?<!\*)\*(?!\*)'), '')
-        .replaceAll('\n', ' ')
-        .trim();
-    final cleanContent = stripped;
-    final snippet = cleanContent.isNotEmpty
-        ? cleanContent
-        : 'No content yet — tap to start writing.';
+    final badgeStyle = _getSubjectStyle(note.subject, note.title);
 
     return Material(
       color: Colors.transparent,
@@ -3083,7 +4095,7 @@ class _NoteCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         child: Ink(
           decoration: BoxDecoration(
-            color: _kNCard,
+            color: Colors.white,
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
               color: _kNSep,
@@ -3091,105 +4103,145 @@ class _NoteCard extends StatelessWidget {
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
+                color: Colors.black.withValues(alpha: 0.025),
                 blurRadius: 10,
                 offset: const Offset(0, 3),
               ),
             ],
           ),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 12, 16),
+            padding: const EdgeInsets.fromLTRB(14, 13, 8, 13),
             child: Row(
               children: [
-                // Subject/Title Icon inside soft pastel circle
-                _buildCircleIcon(note.title, note.subject),
-                const SizedBox(width: 14),
+                // Subject / Note circular icon
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: badgeStyle.bgColor,
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: badgeStyle.isAtom
+                      ? SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CustomPaint(
+                            painter: _AtomIconPainter(badgeStyle.color),
+                          ),
+                        )
+                      : Icon(
+                          badgeStyle.icon,
+                          color: badgeStyle.color,
+                          size: 21,
+                        ),
+                ),
+                const SizedBox(width: 12),
 
-                // Note Details
+                // Note Details: Title + Badge Pill, Date + Size
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Title
-                      Text(
-                        (note.title as dynamic)?.toString().trim().isNotEmpty ==
-                                true
-                            ? note.title
-                            : 'Untitled Note',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: _kNHead,
-                          letterSpacing: -0.2,
-                          height: 1.25,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-
-                      // Subject name in blue
-                      Text(
-                        (note.subject as dynamic)
-                                    ?.toString()
-                                    .trim()
-                                    .isNotEmpty ==
-                                true
-                            ? note.subject
-                            : 'General',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: _kNSubject,
-                          letterSpacing: -0.1,
-                        ),
+                      // Title row with Subject Pill Badge
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              note.title.trim().isNotEmpty
+                                  ? note.title
+                                  : 'Untitled Note',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: _kNHead,
+                                letterSpacing: -0.2,
+                                height: 1.2,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          // Subject pill badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2.5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: badgeStyle.bgColor,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              note.subject.trim().isNotEmpty
+                                  ? note.subject
+                                  : 'General',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: badgeStyle.color,
+                                letterSpacing: -0.1,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 5),
 
-                      // Content preview limited to two lines
-                      Text(
-                        snippet,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          height: 1.35,
-                          color: _kNBody,
-                          fontWeight: FontWeight.w400,
-                        ),
+                      // Date + bullet + size metadata
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.calendar_today_outlined,
+                            size: 13,
+                            color: Color(0xFF64748B),
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            note.date,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF64748B),
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                          const Text(
+                            '  •  ',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF94A3B8),
+                            ),
+                          ),
+                          Text(
+                            _estimateNoteSize(note),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF64748B),
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ),
 
-                const SizedBox(width: 6),
-
-                // Delete Button
-                if (onDelete != null)
-                  IconButton(
-                    icon: const Icon(
-                      Icons.delete_outline_rounded,
-                      color: Color(0xFF9CA3AF),
-                      size: 20,
-                    ),
-                    splashRadius: 20,
-                    padding: const EdgeInsets.all(4),
-                    constraints: const BoxConstraints(),
-                    tooltip: 'Delete Note',
-                    onPressed: () => _showDeleteDialog(context),
+                // Three-dot options menu
+                IconButton(
+                  icon: const Icon(
+                    Icons.more_vert_rounded,
+                    color: Color(0xFF94A3B8),
+                    size: 20,
                   ),
-
-                const SizedBox(width: 2),
-
-                // Right-facing chevron arrow
-                const Icon(
-                  Icons.chevron_right_rounded,
-                  color: Color(0xFF8E95A9),
-                  size: 24,
+                  splashRadius: 20,
+                  padding: const EdgeInsets.all(4),
+                  constraints: const BoxConstraints(),
+                  tooltip: 'Delete Note',
+                  onPressed: () => _showNoteOptions(context),
                 ),
+                const SizedBox(width: 4),
               ],
             ),
           ),
