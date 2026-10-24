@@ -35,7 +35,7 @@ void main() {
     // Tap Tasks tab in bottom navigation
     await tester.tap(find.byIcon(Icons.check_circle_outline_rounded).last);
     await tester.pumpAndSettle();
-    expect(find.text('Stay organized. Get things done.'), findsOneWidget);
+    expect(find.text('Stay focused, one task at a time.'), findsOneWidget);
 
     // Tap Timetable tab in bottom navigation
     await tester.tap(find.byIcon(Icons.calendar_month_rounded).last);

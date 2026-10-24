@@ -18,61 +18,84 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // 1. Verify Top Header
-    expect(find.text('Tasks'), findsOneWidget);
-    expect(find.text('Stay organized. Get things done.'), findsOneWidget);
+    // 1. Verify Top Header matching reference
+    expect(find.text('My Tasks'), findsOneWidget);
+    expect(find.text('Stay focused, one task at a time.'), findsOneWidget);
     expect(find.byIcon(Icons.more_horiz_rounded), findsOneWidget);
 
-    // 2. Verify Tab Selector
-    expect(find.text('All Tasks'), findsOneWidget);
+    // 2. Verify Task Progress Card
+    expect(find.text('Your progress'), findsOneWidget);
+    // 1 of 4 default tasks is completed (Physics)
+    expect(find.text('1 of 4 completed'), findsOneWidget);
+    expect(find.text('25%'), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
+
+    // 3. Verify Filter Bar (All, Today, Upcoming, Completed)
+    expect(find.text('All'), findsOneWidget);
+    expect(find.text('Today'), findsOneWidget);
+    expect(find.text('Upcoming'), findsOneWidget);
     expect(find.text('Completed'), findsWidgets);
 
-    // 3. Verify Initial Tasks from reference image
+    // 4. Verify Section Header ("Due soon" & "View all")
+    expect(find.text('Due soon'), findsOneWidget);
+    expect(find.text('View all'), findsOneWidget);
+
+    // 5. Verify Tasks and Priority badge
     expect(find.text('Complete Calculus Problem Set 3'), findsOneWidget);
+    expect(find.text('High'), findsOneWidget); // Priority badge on Calculus task
     expect(find.text('Due Tomorrow'), findsOneWidget);
-
-    expect(find.text('Read Physics Chapter 5 Summary'), findsOneWidget);
-    expect(find.text('Completed'), findsWidgets); // tab and task subtitle
-
     expect(find.text('Submit Chemistry Lab Report'), findsOneWidget);
-    expect(find.text('Due Friday'), findsOneWidget);
-
     expect(find.text('Prepare Flashcards for History'), findsOneWidget);
-    expect(find.text('Due Sunday'), findsOneWidget);
 
-    // 4. Verify Delete Button (coral trash can on each card)
-    expect(find.byIcon(Icons.delete_outline_rounded), findsNWidgets(4));
-
-    // 5. Test Toggling Completion
-    // Tap on the checkbox or title for "Complete Calculus Problem Set 3"
+    // 6. Test Toggling Task Completion
+    // Tap on the task title or checkbox to toggle "Complete Calculus Problem Set 3"
     await tester.tap(find.text('Complete Calculus Problem Set 3'));
     await tester.pumpAndSettle();
 
-    // Now it should be completed
-    // 6. Test Switching to "Completed" Tab
+    // Progress updates immediately: now 2 of 4 completed (50%)
+    expect(find.text('2 of 4 completed'), findsOneWidget);
+    expect(find.text('50%'), findsOneWidget);
+
+    // 7. Test Switching to "Completed" Filter
     await tester.tap(find.text('Completed').first);
     await tester.pumpAndSettle();
 
-    // Both "Complete Calculus Problem Set 3" and "Read Physics Chapter 5 Summary" are completed
+    // Both completed tasks are displayed in Completed filter
     expect(find.text('Complete Calculus Problem Set 3'), findsOneWidget);
     expect(find.text('Read Physics Chapter 5 Summary'), findsOneWidget);
     // Incomplete tasks are filtered out
     expect(find.text('Submit Chemistry Lab Report'), findsNothing);
 
-    // Switch back to "All Tasks"
-    await tester.tap(find.text('All Tasks'));
+    // 8. Test "View all" Action restores All Tasks filter
+    await tester.tap(find.text('View all'));
     await tester.pumpAndSettle();
     expect(find.text('Submit Chemistry Lab Report'), findsOneWidget);
 
-    // 7. Test Deleting a Task
-    await tester.tap(find.byIcon(Icons.delete_outline_rounded).first);
+    // 9. Test "Upcoming" Filter
+    await tester.tap(find.text('Upcoming'));
+    await tester.pumpAndSettle();
+    // Incomplete future tasks are displayed
+    expect(find.text('Submit Chemistry Lab Report'), findsOneWidget);
+    expect(find.text('Prepare Flashcards for History'), findsOneWidget);
+    // Completed tasks are excluded from Upcoming
+    expect(find.text('Read Physics Chapter 5 Summary'), findsNothing);
+
+    // Switch back to "All"
+    await tester.tap(find.text('All'));
     await tester.pumpAndSettle();
 
-    // First task was deleted
-    expect(find.text('Complete Calculus Problem Set 3'), findsNothing);
+    // 10. Test Deleting a Task via card three-dot menu
+    await tester.tap(find.byIcon(Icons.more_vert).first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Delete task'), findsOneWidget);
+    await tester.tap(find.text('Delete task'));
+    await tester.pumpAndSettle();
+
+    // Task was deleted and Undo snackbar is visible
     expect(find.text('Undo'), findsOneWidget);
 
-    // 8. Test Adding a Task via (+) FAB
+    // 11. Test Adding a Task via (+) FAB
     await tester.tap(find.byIcon(Icons.add_rounded));
     await tester.pumpAndSettle();
 
@@ -84,10 +107,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Biology Exam Study Guide'), findsOneWidget);
-    expect(find.text('Due Friday'), findsWidgets);
   });
 
-  testWidgets('Saved empty tasks list remains empty and does not revert to sample data',
+  testWidgets('Saved empty tasks list remains empty and handles progress correctly',
       (WidgetTester tester) async {
     SharedPreferences.setMockInitialValues({
       'studymate_saved_tasks': <String>[],
@@ -104,7 +126,167 @@ void main() {
     // Default sample tasks should NOT appear
     expect(find.text('Complete Calculus Problem Set 3'), findsNothing);
     expect(find.text('Read Physics Chapter 5 Summary'), findsNothing);
+
+    // Progress card handles empty state gracefully
+    expect(find.text('0 of 0 completed'), findsOneWidget);
+    expect(find.text('0%'), findsOneWidget);
+
     // Empty state should be visible
     expect(find.text('No tasks to do'), findsOneWidget);
+  });
+
+  testWidgets('Bug 1: Each filter option has its own independent tap and animation state',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: TasksScreen(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final allKey = const ValueKey('filter_tab_all');
+    final todayKey = const ValueKey('filter_tab_today');
+    final upcomingKey = const ValueKey('filter_tab_upcoming');
+    final completedKey = const ValueKey('filter_tab_completed');
+
+    expect(find.byKey(allKey), findsOneWidget);
+    expect(find.byKey(todayKey), findsOneWidget);
+    expect(find.byKey(upcomingKey), findsOneWidget);
+    expect(find.byKey(completedKey), findsOneWidget);
+
+    // Helper to get Material color of a tab
+    Color? getTabColor(Key key) {
+      final materialWidget = tester.widget<Material>(find.byKey(key));
+      return materialWidget.color;
+    }
+
+    const activeColor = Color(0xFFEFF6FF);
+    const inactiveColor = Colors.transparent;
+
+    // Initially "All" is selected
+    expect(getTabColor(allKey), activeColor);
+    expect(getTabColor(todayKey), inactiveColor);
+    expect(getTabColor(upcomingKey), inactiveColor);
+    expect(getTabColor(completedKey), inactiveColor);
+
+    // Tap "Today"
+    await tester.tap(find.byKey(todayKey));
+    await tester.pumpAndSettle();
+
+    expect(getTabColor(allKey), inactiveColor);
+    expect(getTabColor(todayKey), activeColor);
+    expect(getTabColor(upcomingKey), inactiveColor);
+    expect(getTabColor(completedKey), inactiveColor);
+
+    // Tap "Upcoming"
+    await tester.tap(find.byKey(upcomingKey));
+    await tester.pumpAndSettle();
+
+    expect(getTabColor(allKey), inactiveColor);
+    expect(getTabColor(todayKey), inactiveColor);
+    expect(getTabColor(upcomingKey), activeColor);
+    expect(getTabColor(completedKey), inactiveColor);
+
+    // Tap "Completed"
+    await tester.tap(find.byKey(completedKey));
+    await tester.pumpAndSettle();
+
+    expect(getTabColor(allKey), inactiveColor);
+    expect(getTabColor(todayKey), inactiveColor);
+    expect(getTabColor(upcomingKey), inactiveColor);
+    expect(getTabColor(completedKey), activeColor);
+
+    // Tap "All"
+    await tester.tap(find.byKey(allKey));
+    await tester.pumpAndSettle();
+
+    expect(getTabColor(allKey), activeColor);
+    expect(getTabColor(todayKey), inactiveColor);
+    expect(getTabColor(upcomingKey), inactiveColor);
+    expect(getTabColor(completedKey), inactiveColor);
+  });
+
+  testWidgets('Bug 2: Checkbox updates immediately on exact tapped task before reordering',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() => tester.view.resetPhysicalSize());
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: TasksScreen(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Initial order of tasks:
+    // 1. Complete Calculus Problem Set 3 (id: 1, incomplete)
+    // 2. Submit Chemistry Lab Report (id: 3, incomplete)
+    // 3. Prepare Flashcards for History (id: 4, incomplete)
+    // 4. Read Physics Chapter 5 Summary (id: 2, completed)
+
+    final calculusCheckboxFinder = find.byKey(const ValueKey('task_checkbox_1'));
+    final calculusCheckbox = tester.widget<AnimatedContainer>(calculusCheckboxFinder);
+    final boxDecor = calculusCheckbox.decoration as BoxDecoration;
+    expect(boxDecor.color, Colors.white); // Unchecked initially
+
+    // 1. Tap the first task (Calculus) checkbox
+    await tester.tap(calculusCheckboxFinder);
+    // Pump 1 frame without advancing the reorder timer
+    await tester.pump();
+
+    // Checkbox updates immediately to blue with checkmark in-place
+    final updatedCalculusCheckbox = tester.widget<AnimatedContainer>(calculusCheckboxFinder);
+    final updatedBoxDecor = updatedCalculusCheckbox.decoration as BoxDecoration;
+    expect(updatedBoxDecor.color, const Color(0xFF2563EB)); // Ticked immediately!
+
+    // Verify task is STILL at the top of the list in this frame (not yet moved to bottom)
+    final taskItemsBeforeReorder = tester.widgetList<Padding>(find.byWidgetPredicate(
+      (w) => w is Padding && w.key is ValueKey<String> && (w.key as ValueKey<String>).value.startsWith('task_item_'),
+    )).toList();
+    expect((taskItemsBeforeReorder.first.key as ValueKey<String>).value, 'task_item_1');
+
+    // 2. Now let the 400ms timer elapse to allow reordering
+    await tester.pump(const Duration(milliseconds: 450));
+    await tester.pumpAndSettle();
+
+    // Now it has reordered: incomplete tasks (History, Chemistry) are at top, completed (Calculus, Physics) at bottom
+    final taskItemsAfterReorder = tester.widgetList<Padding>(find.byWidgetPredicate(
+      (w) => w is Padding && w.key is ValueKey<String> && (w.key as ValueKey<String>).value.startsWith('task_item_'),
+    )).toList();
+    // Sunday (id: 4) is tomorrow, Friday (id: 3) is 6 days away
+    expect((taskItemsAfterReorder[0].key as ValueKey<String>).value, 'task_item_4');
+    expect((taskItemsAfterReorder[1].key as ValueKey<String>).value, 'task_item_3');
+    expect((taskItemsAfterReorder[2].key as ValueKey<String>).value, 'task_item_2'); // Physics completed (Due Today)
+    expect((taskItemsAfterReorder[3].key as ValueKey<String>).value, 'task_item_1'); // Calculus completed (Due Tomorrow)
+
+    // 3. Test middle task: tap Chemistry (id: 3)
+    final chemistryCheckboxFinder = find.byKey(const ValueKey('task_checkbox_3'));
+    await tester.tap(chemistryCheckboxFinder);
+    await tester.pump(); // immediate frame
+
+    // Ticked immediately on Chemistry
+    final updatedChemistryCheckbox = tester.widget<AnimatedContainer>(chemistryCheckboxFinder);
+    expect((updatedChemistryCheckbox.decoration as BoxDecoration).color, const Color(0xFF2563EB));
+
+    // Complete reorder
+    await tester.pump(const Duration(milliseconds: 450));
+    await tester.pumpAndSettle();
+
+    // 4. Test last incomplete task: History (id: 4)
+    final historyCheckboxFinder = find.byKey(const ValueKey('task_checkbox_4'));
+    await tester.tap(historyCheckboxFinder);
+    await tester.pump();
+
+    // Ticked immediately on History
+    final updatedHistoryCheckbox = tester.widget<AnimatedContainer>(historyCheckboxFinder);
+    expect((updatedHistoryCheckbox.decoration as BoxDecoration).color, const Color(0xFF2563EB));
+
+    await tester.pump(const Duration(milliseconds: 450));
+    await tester.pumpAndSettle();
+
+    // All 4 tasks are now completed
+    expect(find.text('4 of 4 completed'), findsOneWidget);
+    expect(find.text('100%'), findsOneWidget);
   });
 }
