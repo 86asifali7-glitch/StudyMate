@@ -40,7 +40,7 @@ void main() {
     // Tap Timetable tab in bottom navigation
     await tester.tap(find.byIcon(Icons.calendar_month_rounded).last);
     await tester.pumpAndSettle();
-    expect(find.text('Your weekly class schedule'), findsOneWidget);
+    expect(find.text('Your week, planned clearly'), findsOneWidget);
 
     // Tap Home tab in bottom navigation
     await tester.tap(find.byIcon(Icons.home_rounded).last);

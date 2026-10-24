@@ -5,12 +5,13 @@ import '../services/notification_service.dart';
 // ─── Design Tokens matching reference image ─────────────────────────────────
 const _kBgColor       = Color(0xFFFFFFFF); // clean white background
 const _kCardBg        = Color(0xFFFFFFFF); // white card surface
-const _kPurplePrimary = Color(0xFF2563EB); // primary blue accent
-const _kLavenderSoft  = Color(0xFFEFF6FF); // soft light-blue container
-const _kTextHead      = Color(0xFF1E293B); // dark slate heading
-const _kTextMuted     = Color(0xFF64748B); // muted subtitle & icon
-const _kCardBorder    = Color(0xFFE2E8F0); // subtle card border
-const _kDeleteIcon    = Color(0xFFEF4444); // coral trash icon
+const _kPrimaryBlue   = Color(0xFF2563EB); // vibrant primary blue #2563EB
+const _kLavenderSoft  = Color(0xFFEFF6FF); // soft light-blue container #EFF6FF
+const _kTrackBlue     = Color(0xFFDBEAFE); // border/track tint #DBEAFE
+const _kTextHead      = Color(0xFF1E293B); // dark slate heading #1E293B
+const _kTextMuted     = Color(0xFF64748B); // muted secondary text #64748B
+const _kCardBorder    = Color(0xFFE2E8F0); // subtle card border #E2E8F0
+const _kDeleteIcon    = Color(0xFFEF4444); // coral red icon #EF4444
 
 // ─── Data Model ──────────────────────────────────────────────────────────────
 class TimetableEntry {
@@ -19,6 +20,7 @@ class TimetableEntry {
   final String day; // 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'
   final TimeOfDay startTime;
   final TimeOfDay endTime;
+  final String? room;
 
   TimetableEntry({
     required this.id,
@@ -26,7 +28,8 @@ class TimetableEntry {
     required this.day,
     required this.startTime,
     required this.endTime,
-  });
+    String? room,
+  }) : room = room ?? (id == '2' ? 'Room 203' : (id == '3' ? 'Room 101' : null));
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -36,6 +39,7 @@ class TimetableEntry {
         'startMinute': startTime.minute,
         'endHour': endTime.hour,
         'endMinute': endTime.minute,
+        if (room != null && room!.isNotEmpty) 'room': room,
       };
 
   factory TimetableEntry.fromJson(Map<String, dynamic> json) => TimetableEntry(
@@ -50,6 +54,7 @@ class TimetableEntry {
           hour: json['endHour'] as int,
           minute: json['endMinute'] as int,
         ),
+        room: json['room'] as String?,
       );
 
   @override
@@ -90,6 +95,13 @@ class TimetableEntry {
 }
 
 const _days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+const _dayFullNames = {
+  'Mon': 'Monday',
+  'Tue': 'Tuesday',
+  'Wed': 'Wednesday',
+  'Thu': 'Thursday',
+  'Fri': 'Friday',
+};
 
 class TimetableScreen extends StatefulWidget {
   const TimetableScreen({super.key});
@@ -162,6 +174,21 @@ class _TimetableScreenState extends State<TimetableScreen> {
       return aMin.compareTo(bMin);
     });
     return list;
+  }
+
+  String _getTimeRangeString(List<TimetableEntry> entries) {
+    if (entries.isEmpty) return 'No schedule';
+    final earliest = entries.reduce((curr, next) {
+      final currMin = curr.startTime.hour * 60 + curr.startTime.minute;
+      final nextMin = next.startTime.hour * 60 + next.startTime.minute;
+      return currMin <= nextMin ? curr : next;
+    });
+    final latest = entries.reduce((curr, next) {
+      final currMin = curr.endTime.hour * 60 + curr.endTime.minute;
+      final nextMin = next.endTime.hour * 60 + next.endTime.minute;
+      return currMin >= nextMin ? curr : next;
+    });
+    return '${TimetableEntry._fmt(earliest.startTime)} – ${TimetableEntry._fmt(latest.endTime)}';
   }
 
   Future<void> _addEntry(TimetableEntry entry) async {
@@ -269,6 +296,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
   Future<void> _openEntryDialog({TimetableEntry? existing}) async {
     final isEdit = existing != null;
     final subjectCtrl = TextEditingController(text: isEdit ? existing.subject : '');
+    final roomCtrl = TextEditingController(text: existing?.room ?? '');
     String selectedDay = existing?.day ?? _days[_selectedDayIndex];
     TimeOfDay startTime = existing?.startTime ?? const TimeOfDay(hour: 9, minute: 0);
     TimeOfDay endTime = existing?.endTime ?? const TimeOfDay(hour: 10, minute: 30);
@@ -283,254 +311,282 @@ class _TimetableScreenState extends State<TimetableScreen> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(24),
               ),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 38,
-                          height: 38,
-                          decoration: BoxDecoration(
-                            color: _kLavenderSoft,
-                            borderRadius: BorderRadius.circular(10),
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color: _kLavenderSoft,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.schedule_rounded,
+                              color: _kPrimaryBlue,
+                              size: 20,
+                            ),
                           ),
-                          child: const Icon(
-                            Icons.schedule_rounded,
-                            color: _kPurplePrimary,
-                            size: 20,
+                          const SizedBox(width: 12),
+                          Text(
+                            isEdit ? 'Edit Class' : 'Add Class',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: _kTextHead,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          isEdit ? 'Edit Class' : 'Add Class',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            color: _kTextHead,
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      TextField(
+                        key: const Key('class_subject_field'),
+                        controller: subjectCtrl,
+                        autofocus: true,
+                        style: const TextStyle(fontSize: 14, color: _kTextHead),
+                        decoration: InputDecoration(
+                          hintText: 'e.g. Calculus II, Physics Mechanics',
+                          hintStyle: const TextStyle(fontSize: 13, color: _kTextMuted),
+                          filled: true,
+                          fillColor: const Color(0xFFF8F9FE),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFE2E6F2)),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 18),
-                    TextField(
-                      key: const Key('class_subject_field'),
-                      controller: subjectCtrl,
-                      autofocus: true,
-                      style: const TextStyle(fontSize: 14, color: _kTextHead),
-                      decoration: InputDecoration(
-                        hintText: 'e.g. Calculus II, Physics Mechanics',
-                        hintStyle: const TextStyle(fontSize: 13, color: _kTextMuted),
-                        filled: true,
-                        fillColor: const Color(0xFFF8F9FE),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE2E6F2)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE2E6F2)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: _kPurplePrimary, width: 1.5),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFE2E6F2)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: _kPrimaryBlue, width: 1.5),
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 14),
-                    const Text(
-                      'Day of week',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: _kTextMuted,
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: roomCtrl,
+                        style: const TextStyle(fontSize: 14, color: _kTextHead),
+                        decoration: InputDecoration(
+                          hintText: 'Room / Location (e.g. Room 203)',
+                          hintStyle: const TextStyle(fontSize: 13, color: _kTextMuted),
+                          filled: true,
+                          fillColor: const Color(0xFFF8F9FE),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFE2E6F2)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFE2E6F2)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: _kPrimaryBlue, width: 1.5),
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: _days.map((day) {
-                        final isSelected = selectedDay == day;
-                        return Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: () => setDialogState(() => selectedDay = day),
-                            mouseCursor: SystemMouseCursors.click,
-                            borderRadius: BorderRadius.circular(10),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 150),
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                              decoration: BoxDecoration(
-                                color: isSelected ? _kPurplePrimary : const Color(0xFFF1F3F9),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Text(
-                                day,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: isSelected ? Colors.white : const Color(0xFF4B5565),
+                      const SizedBox(height: 14),
+                      const Text(
+                        'Day of week',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: _kTextMuted,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: _days.map((day) {
+                          final isSelected = selectedDay == day;
+                          return Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () => setDialogState(() => selectedDay = day),
+                              mouseCursor: SystemMouseCursors.click,
+                              borderRadius: BorderRadius.circular(10),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 150),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                                decoration: BoxDecoration(
+                                  color: isSelected ? _kPrimaryBlue : const Color(0xFFF1F3F9),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  day,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: isSelected ? Colors.white : const Color(0xFF4B5565),
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Start Time',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: _kTextMuted,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              InkWell(
-                                onTap: () async {
-                                  final picked = await showTimePicker(
-                                    context: ctx,
-                                    initialTime: startTime,
-                                  );
-                                  if (picked != null) {
-                                    setDialogState(() => startTime = picked);
-                                  }
-                                },
-                                mouseCursor: SystemMouseCursors.click,
-                                borderRadius: BorderRadius.circular(12),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF8F9FE),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: const Color(0xFFE2E6F2)),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Start Time',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: _kTextMuted,
                                   ),
-                                  child: Text(
-                                    TimetableEntry._fmt(startTime),
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: _kPurplePrimary,
+                                ),
+                                const SizedBox(height: 6),
+                                InkWell(
+                                  onTap: () async {
+                                    final picked = await showTimePicker(
+                                      context: ctx,
+                                      initialTime: startTime,
+                                    );
+                                    if (picked != null) {
+                                      setDialogState(() => startTime = picked);
+                                    }
+                                  },
+                                  mouseCursor: SystemMouseCursors.click,
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF8F9FE),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: const Color(0xFFE2E6F2)),
+                                    ),
+                                    child: Text(
+                                      TimetableEntry._fmt(startTime),
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: _kPrimaryBlue,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'End Time',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: _kTextMuted,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              InkWell(
-                                onTap: () async {
-                                  final picked = await showTimePicker(
-                                    context: ctx,
-                                    initialTime: endTime,
-                                  );
-                                  if (picked != null) {
-                                    setDialogState(() => endTime = picked);
-                                  }
-                                },
-                                mouseCursor: SystemMouseCursors.click,
-                                borderRadius: BorderRadius.circular(12),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF8F9FE),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: const Color(0xFFE2E6F2)),
-                                  ),
-                                  child: Text(
-                                    TimetableEntry._fmt(endTime),
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: _kPurplePrimary,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 22),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          child: const Text(
-                            'Cancel',
-                            style: TextStyle(color: Color(0xFF6B7280), fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        ElevatedButton(
-                          key: const Key('save_class_button'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _kPurplePrimary,
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              ],
                             ),
                           ),
-                          onPressed: () async {
-                            final rawSubject = subjectCtrl.text.trim();
-                            if (rawSubject.isEmpty) return;
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'End Time',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: _kTextMuted,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                InkWell(
+                                  onTap: () async {
+                                    final picked = await showTimePicker(
+                                      context: ctx,
+                                      initialTime: endTime,
+                                    );
+                                    if (picked != null) {
+                                      setDialogState(() => endTime = picked);
+                                    }
+                                  },
+                                  mouseCursor: SystemMouseCursors.click,
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF8F9FE),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: const Color(0xFFE2E6F2)),
+                                    ),
+                                    child: Text(
+                                      TimetableEntry._fmt(endTime),
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: _kPrimaryBlue,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 22),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text(
+                              'Cancel',
+                              style: TextStyle(color: Color(0xFF6B7280), fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton(
+                            key: const Key('save_class_button'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _kPrimaryBlue,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            onPressed: () async {
+                              final rawSubject = subjectCtrl.text.trim();
+                              if (rawSubject.isEmpty) return;
+                              final rawRoom = roomCtrl.text.trim();
 
-                            final entry = TimetableEntry(
-                              id: isEdit ? existing.id : DateTime.now().millisecondsSinceEpoch.toString(),
-                              subject: rawSubject,
-                              day: selectedDay,
-                              startTime: startTime,
-                              endTime: endTime,
-                            );
+                              final entry = TimetableEntry(
+                                id: isEdit ? existing.id : DateTime.now().millisecondsSinceEpoch.toString(),
+                                subject: rawSubject,
+                                day: selectedDay,
+                                startTime: startTime,
+                                endTime: endTime,
+                                room: rawRoom.isNotEmpty ? rawRoom : null,
+                              );
 
-                            Navigator.pop(ctx);
-                            if (isEdit) {
-                              await _updateEntry(entry);
-                            } else {
-                              await _addEntry(entry);
-                              final targetIndex = _days.indexOf(selectedDay);
-                              if (targetIndex != -1) {
-                                setState(() => _selectedDayIndex = targetIndex);
+                              Navigator.pop(ctx);
+                              if (isEdit) {
+                                await _updateEntry(entry);
+                              } else {
+                                await _addEntry(entry);
+                                final targetIndex = _days.indexOf(selectedDay);
+                                if (targetIndex != -1) {
+                                  setState(() => _selectedDayIndex = targetIndex);
+                                }
                               }
-                            }
-                          },
-                          child: Text(
-                            isEdit ? 'Save Changes' : 'Add Class',
-                            style: const TextStyle(fontWeight: FontWeight.w600),
+                            },
+                            child: Text(
+                              isEdit ? 'Save Changes' : 'Add Class',
+                              style: const TextStyle(fontWeight: FontWeight.w600),
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -540,264 +596,340 @@ class _TimetableScreenState extends State<TimetableScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final entries = _entriesForSelectedDay();
+  // ─── UI Components ─────────────────────────────────────────────────────────
 
-    return Scaffold(
-      backgroundColor: _kBgColor,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Top Header ───────────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
-                      Text(
-                        'Timetable',
-                        style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.w800,
-                          color: _kTextHead,
-                          letterSpacing: -0.6,
-                          height: 1.1,
-                        ),
-                      ),
-                      SizedBox(height: 6),
-                      Text(
-                        'Your weekly class schedule',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: _kTextMuted,
-                          fontWeight: FontWeight.w400,
-                          letterSpacing: -0.1,
-                        ),
-                      ),
-                    ],
+  Widget _buildHeader() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text(
+                  'My Timetable',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    color: _kTextHead,
+                    letterSpacing: -0.6,
+                    height: 1.15,
                   ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (_cachedEntries.isNotEmpty) ...[
-                        Tooltip(
-                          message: 'Clear All Classes',
-                          child: Container(
-                            width: 44,
-                            height: 44,
-                            margin: const EdgeInsets.only(right: 8),
-                            decoration: BoxDecoration(
-                              color: _kLavenderSoft,
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                key: const Key('clear_all_header_button'),
-                                borderRadius: BorderRadius.circular(14),
-                                mouseCursor: SystemMouseCursors.click,
-                                onTap: _confirmClearAll,
-                                hoverColor: _kDeleteIcon.withValues(alpha: 0.12),
-                                child: const Center(
-                                  child: Icon(
-                                    Icons.delete_sweep_rounded,
-                                    color: _kDeleteIcon,
-                                    size: 24,
-                                  ),
-                                ),
-                              ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Your week, planned clearly',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: _kTextMuted,
+                    fontWeight: FontWeight.w400,
+                    letterSpacing: -0.1,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_cachedEntries.isNotEmpty) ...[
+                Tooltip(
+                  message: 'Clear Timetable',
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    margin: const EdgeInsets.only(right: 10),
+                    decoration: BoxDecoration(
+                      color: _kLavenderSoft,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        key: const Key('clear_all_header_button'),
+                        customBorder: const CircleBorder(),
+                        mouseCursor: SystemMouseCursors.click,
+                        onTap: _confirmClearAll,
+                        hoverColor: _kPrimaryBlue.withValues(alpha: 0.12),
+                        child: const Center(
+                          child: Icon(
+                            Icons.auto_delete_outlined,
+                            color: _kPrimaryBlue,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+              Tooltip(
+                message: 'Add Class',
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: _kLavenderSoft,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      key: const Key('add_class_header_button'),
+                      customBorder: const CircleBorder(),
+                      mouseCursor: SystemMouseCursors.click,
+                      onTap: () => _openEntryDialog(),
+                      hoverColor: _kPrimaryBlue.withValues(alpha: 0.12),
+                      child: const Center(
+                        child: Icon(
+                          Icons.add_rounded,
+                          color: _kPrimaryBlue,
+                          size: 24,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWeekdaySelector() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: List.generate(_days.length, (i) {
+        final isSelected = _selectedDayIndex == i;
+        final day = _days[i];
+        final dayClassCount = _cachedEntries.where((e) => e.day == day).length;
+
+        return Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: i == 0 ? 0 : 3.0,
+              right: i == _days.length - 1 ? 0 : 3.0,
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Material(
+                color: isSelected ? _kPrimaryBlue : Colors.transparent,
+                child: InkWell(
+                  key: Key('day_tab_$day'),
+                  onTap: () {
+                    if (_selectedDayIndex != i) {
+                      setState(() => _selectedDayIndex = i);
+                    }
+                  },
+                  mouseCursor: SystemMouseCursors.click,
+                  splashColor: isSelected
+                      ? Colors.white.withValues(alpha: 0.16)
+                      : _kPrimaryBlue.withValues(alpha: 0.08),
+                  highlightColor: isSelected
+                      ? Colors.white.withValues(alpha: 0.10)
+                      : _kPrimaryBlue.withValues(alpha: 0.04),
+                  hoverColor: Colors.transparent,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 2),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          day,
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                            color: isSelected ? Colors.white : _kTextMuted,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? Colors.white.withValues(alpha: 0.22)
+                                : _kLavenderSoft,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            '$dayClassCount',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              color: isSelected ? Colors.white : _kPrimaryBlue,
                             ),
                           ),
                         ),
                       ],
-                      // Top right rounded lavender Add (+) button matching reference image
-                      Tooltip(
-                        message: 'Add Class',
-                        child: Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: _kLavenderSoft,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              key: const Key('add_class_header_button'),
-                              borderRadius: BorderRadius.circular(14),
-                              mouseCursor: SystemMouseCursors.click,
-                              onTap: () => _openEntryDialog(),
-                              hoverColor: _kPurplePrimary.withValues(alpha: 0.12),
-                              child: const Center(
-                                child: Icon(
-                                  Icons.add_rounded,
-                                  color: _kPurplePrimary,
-                                  size: 26,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 22),
-
-            // ── Day Selector (Mon, Tue, Wed, Thu, Fri) ───────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: List.generate(_days.length, (i) {
-                  final isSelected = _selectedDayIndex == i;
-                  final day = _days[i];
-                  final dayClassCount =
-                      _cachedEntries.where((e) => e.day == day).length;
-
-                  return InkWell(
-                    key: Key('day_tab_$day'),
-                    onTap: () {
-                      if (_selectedDayIndex != i) {
-                        setState(() => _selectedDayIndex = i);
-                      }
-                    },
-                    mouseCursor: SystemMouseCursors.click,
-                    borderRadius: BorderRadius.circular(8),
-                    hoverColor: Colors.transparent,
-                    highlightColor: Colors.transparent,
-                    splashColor: Colors.transparent,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                day,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                                  color: isSelected ? _kPurplePrimary : _kTextMuted,
-                                ),
-                              ),
-                              if (dayClassCount > 0) ...[
-                                const SizedBox(width: 4),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                                  decoration: BoxDecoration(
-                                    color: isSelected
-                                        ? _kPurplePrimary.withValues(alpha: 0.15)
-                                        : const Color(0xFFE8EAFD),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Text(
-                                    '$dayClassCount',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700,
-                                      color: isSelected ? _kPurplePrimary : _kTextMuted,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          // Active purple indicator bar
-                          AnimatedContainer(
-                            duration: const Duration(milliseconds: 180),
-                            height: 3,
-                            width: isSelected ? 32 : 0,
-                            decoration: BoxDecoration(
-                              color: isSelected ? _kPurplePrimary : Colors.transparent,
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                        ],
-                      ),
                     ),
-                  );
-                }),
+                  ),
+                ),
               ),
             ),
+          ),
+        );
+      }),
+    );
+  }
 
-            const SizedBox(height: 16),
+  Widget _buildDailySummaryCard(List<TimetableEntry> entries) {
+    final currentDay = _days[_selectedDayIndex];
+    final dayFullName = _dayFullNames[currentDay] ?? currentDay;
+    final count = entries.length;
+    final timeRange = _getTimeRangeString(entries);
+    final subtitle = count > 0 ? '$count ${count == 1 ? "class" : "classes"} · $timeRange' : 'No classes scheduled';
 
-            // ── Classes List ─────────────────────────────────────────────────
-            Expanded(
-              child: _cachedEntries.isEmpty
-                  ? _buildEmptyState(isTotalEmpty: true)
-                  : entries.isEmpty
-                      ? _buildEmptyState(isTotalEmpty: false)
-                      : ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(24, 0, 24, 100),
-                          physics: const BouncingScrollPhysics(),
-                          itemCount: entries.length,
-                          itemBuilder: (context, index) {
-                            final entry = entries[index];
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: _TimetableCard(
-                                key: ValueKey(entry.id),
-                                entry: entry,
-                                onDelete: () => _deleteEntry(entry),
-                                onEdit: () => _openEntryDialog(existing: entry),
-                              ),
-                            );
-                          },
-                        ),
-            ),
-          ],
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: _kLavenderSoft,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: _kTrackBlue,
+          width: 1.2,
         ),
       ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: const BoxDecoration(
+                  color: _kTrackBlue,
+                  shape: BoxShape.circle,
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.calendar_month_rounded,
+                    color: _kPrimaryBlue,
+                    size: 22,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$dayFullName schedule',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: _kTextHead,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: _kTextMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: _kPrimaryBlue,
+                size: 24,
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: SizedBox(
+              height: 6,
+              child: LinearProgressIndicator(
+                value: count > 0 ? (count / 4).clamp(0.2, 1.0) : 0.0,
+                backgroundColor: _kTrackBlue,
+                valueColor: const AlwaysStoppedAnimation<Color>(_kPrimaryBlue),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(int count) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        const Text(
+          'Your classes',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            color: _kTextHead,
+            letterSpacing: -0.3,
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: _kLavenderSoft,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            '$count ${count == 1 ? "class" : "classes"}',
+            style: const TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              color: _kPrimaryBlue,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildEmptyState({bool isTotalEmpty = false}) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 40),
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 36),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 68,
-              height: 68,
+              width: 64,
+              height: 64,
               decoration: const BoxDecoration(
-                color: _kLavenderSoft,
+                color: Color(0xFFF1F5F9),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
                 Icons.calendar_month_rounded,
-                color: _kPurplePrimary,
-                size: 32,
+                color: _kTextMuted,
+                size: 30,
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             Text(
-              isTotalEmpty
-                  ? 'No classes scheduled yet'
-                  : 'No classes scheduled',
+              isTotalEmpty ? 'No classes scheduled yet' : 'No classes scheduled',
               style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
                 color: _kTextHead,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             Text(
               isTotalEmpty
                   ? 'Your timetable is empty. Tap "+ Add Class" to set up your weekly schedule!'
@@ -813,13 +945,12 @@ class _TimetableScreenState extends State<TimetableScreen> {
               ElevatedButton.icon(
                 key: const Key('empty_add_class_button'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _kPurplePrimary,
+                  backgroundColor: _kPrimaryBlue,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   elevation: 0,
                 ),
                 onPressed: () => _openEntryDialog(),
@@ -839,8 +970,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 ),
                 onPressed: _confirmClearAll,
                 icon: const Icon(Icons.delete_sweep_rounded, size: 18),
@@ -850,6 +980,55 @@ class _TimetableScreenState extends State<TimetableScreen> {
                 ),
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = _entriesForSelectedDay();
+
+    return Scaffold(
+      backgroundColor: _kBgColor,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildHeader(),
+            Expanded(
+              child: ListView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 100),
+                children: [
+                  _buildWeekdaySelector(),
+                  const SizedBox(height: 16),
+                  _buildDailySummaryCard(entries),
+                  const SizedBox(height: 22),
+                  _buildSectionHeader(entries.length),
+                  const SizedBox(height: 12),
+                  if (_cachedEntries.isEmpty)
+                    _buildEmptyState(isTotalEmpty: true)
+                  else if (entries.isEmpty)
+                    _buildEmptyState(isTotalEmpty: false)
+                  else
+                    ...entries.map((entry) {
+                      return Padding(
+                        key: ValueKey('timetable_item_${entry.id}'),
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _TimetableCard(
+                          key: ValueKey('timetable_card_${entry.id}'),
+                          entry: entry,
+                          onDelete: () => _deleteEntry(entry),
+                          onEdit: () => _openEntryDialog(existing: entry),
+                        ),
+                      );
+                    }),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -879,125 +1058,186 @@ class _TimetableCard extends StatelessWidget {
         border: Border.all(color: _kCardBorder, width: 1.2),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.025),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(18),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          mouseCursor: SystemMouseCursors.click,
-          highlightColor: Colors.transparent,
-          hoverColor: _kLavenderSoft.withValues(alpha: 0.5),
-          splashColor: _kLavenderSoft,
-          onTap: onEdit,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            child: Row(
-              children: [
-                // Left: Soft lavender container with clock icon
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: _kLavenderSoft,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Center(
-                    child: Icon(
-                      Icons.access_time_rounded,
-                      color: _kPurplePrimary,
-                      size: 22,
-                    ),
-                  ),
+      clipBehavior: Clip.antiAlias,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Slim blue accent border along the left edge
+            Container(
+              width: 4.5,
+              decoration: const BoxDecoration(
+                color: _kPrimaryBlue,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(18),
+                  bottomLeft: Radius.circular(18),
                 ),
-
-                const SizedBox(width: 14),
-
-                // Middle: Subject and Time
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        entry.subject,
-                        style: const TextStyle(
-                          fontSize: 15.5,
-                          fontWeight: FontWeight.w700,
-                          color: _kTextHead,
-                          letterSpacing: -0.2,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        entry.formattedTime,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: _kPurplePrimary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(width: 8),
-
-                // Right: Edit pencil icon
-                Tooltip(
-                  message: 'Edit class',
-                  child: Material(
-                    color: Colors.transparent,
-                    shape: const CircleBorder(),
-                    child: InkWell(
-                      customBorder: const CircleBorder(),
-                      mouseCursor: SystemMouseCursors.click,
-                      onTap: onEdit,
-                      hoverColor: Colors.black.withValues(alpha: 0.05),
-                      child: const Padding(
-                        padding: EdgeInsets.all(8),
-                        child: Icon(
-                          Icons.edit_outlined,
-                          size: 19,
-                          color: _kTextMuted,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(width: 4),
-
-                // Right: Delete trash icon
-                Tooltip(
-                  message: 'Delete class',
-                  child: Material(
-                    color: Colors.transparent,
-                    shape: const CircleBorder(),
-                    child: InkWell(
-                      customBorder: const CircleBorder(),
-                      mouseCursor: SystemMouseCursors.click,
-                      onTap: onDelete,
-                      hoverColor: const Color(0xFFFFD9DC),
-                      child: const Padding(
-                        padding: EdgeInsets.all(8),
-                        child: Icon(
-                          Icons.delete_outline_rounded,
-                          size: 20,
-                          color: _kDeleteIcon,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
+
+            Expanded(
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: onEdit,
+                  splashColor: _kLavenderSoft,
+                  hoverColor: const Color(0xFFF8FAFC),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                    child: Row(
+                      children: [
+                        // Blue Clock Icon inside light-blue rounded-square background
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: _kLavenderSoft,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Center(
+                            child: Icon(
+                              Icons.access_time_rounded,
+                              color: _kPrimaryBlue,
+                              size: 22,
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(width: 14),
+
+                        // Subject, Time and Optional Room
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                entry.subject,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 15.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: _kTextHead,
+                                  letterSpacing: -0.2,
+                                ),
+                              ),
+                              const SizedBox(height: 5),
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.access_time_rounded,
+                                    size: 13,
+                                    color: _kTextMuted,
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Expanded(
+                                    child: Text(
+                                      entry.formattedTime,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                        color: _kTextMuted,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (entry.room != null && entry.room!.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.location_on_outlined,
+                                      size: 13,
+                                      color: _kTextMuted,
+                                    ),
+                                    const SizedBox(width: 5),
+                                    Expanded(
+                                      child: Text(
+                                        entry.room!,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w500,
+                                          color: _kTextMuted,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(width: 8),
+
+                        // Edit Button with subtle circular background
+                        Tooltip(
+                          message: 'Edit class',
+                          child: Material(
+                            color: const Color(0xFFF1F5F9),
+                            shape: const CircleBorder(),
+                            child: InkWell(
+                              customBorder: const CircleBorder(),
+                              mouseCursor: SystemMouseCursors.click,
+                              onTap: onEdit,
+                              hoverColor: _kPrimaryBlue.withValues(alpha: 0.1),
+                              splashColor: _kPrimaryBlue.withValues(alpha: 0.12),
+                              child: const Padding(
+                                padding: EdgeInsets.all(7.5),
+                                child: Icon(
+                                  Icons.edit_outlined,
+                                  size: 18,
+                                  color: _kTextMuted,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(width: 8),
+
+                        // Delete Button with subtle circular background
+                        Tooltip(
+                          message: 'Delete class',
+                          child: Material(
+                            color: const Color(0xFFFEF2F2),
+                            shape: const CircleBorder(),
+                            child: InkWell(
+                              customBorder: const CircleBorder(),
+                              mouseCursor: SystemMouseCursors.click,
+                              onTap: onDelete,
+                              hoverColor: const Color(0xFFFFD9DC),
+                              splashColor: const Color(0xFFFFCDD2),
+                              child: const Padding(
+                                padding: EdgeInsets.all(7.5),
+                                child: Icon(
+                                  Icons.delete_outline_rounded,
+                                  size: 18,
+                                  color: _kDeleteIcon,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
