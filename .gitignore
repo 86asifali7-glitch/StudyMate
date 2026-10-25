@@ -46,3 +46,13 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Android release signing secrets & keystores
+**/key.properties
+*.jks
+*.keystore
+**/*.jks
+**/*.keystore
+
+# Local backup files
+*.bak
