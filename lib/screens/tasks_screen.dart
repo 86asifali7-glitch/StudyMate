@@ -97,6 +97,100 @@ class _TasksScreenState extends State<TasksScreen> {
 
   TaskFilter _selectedFilter = TaskFilter.all;
 
+  // Selection mode for batch deleting tasks
+  bool _isSelectionMode = false;
+  final Set<String> _selectedTaskIds = {};
+
+  void _toggleSelectionMode([bool? enable]) {
+    setState(() {
+      _isSelectionMode = enable ?? !_isSelectionMode;
+      if (!_isSelectionMode) {
+        _selectedTaskIds.clear();
+      }
+    });
+  }
+
+  void _toggleTaskSelected(String id) {
+    setState(() {
+      if (_selectedTaskIds.contains(id)) {
+        _selectedTaskIds.remove(id);
+      } else {
+        _selectedTaskIds.add(id);
+      }
+    });
+  }
+
+  void _selectAllTasks() {
+    setState(() {
+      final displayed = _displayedTasks;
+      final displayedIds = displayed.map((t) => t.id).toSet();
+      if (_selectedTaskIds.containsAll(displayedIds) && _selectedTaskIds.isNotEmpty) {
+        _selectedTaskIds.removeAll(displayedIds);
+      } else {
+        _selectedTaskIds.addAll(displayedIds);
+      }
+    });
+  }
+
+  Future<void> _deleteSelectedTasks() async {
+    if (_selectedTaskIds.isEmpty) return;
+    final count = _selectedTaskIds.length;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Delete $count Task${count > 1 ? 's' : ''}?',
+          style: const TextStyle(fontWeight: FontWeight.w700, color: _kTextHead),
+        ),
+        content: Text(
+          count == 1
+              ? 'Are you sure you want to permanently delete this selected task?'
+              : 'Are you sure you want to permanently delete these $count selected tasks at once?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      for (final id in _selectedTaskIds) {
+        NotificationService.instance.cancelTaskReminder(id);
+      }
+      setState(() {
+        _cachedTasks.removeWhere((t) => _selectedTaskIds.contains(t.id));
+        _recentlyToggledTaskIds.removeAll(_selectedTaskIds);
+        _selectedTaskIds.clear();
+        _isSelectionMode = false;
+      });
+      await _persistTasks();
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$count task${count > 1 ? 's' : ''} deleted'),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    }
+  }
+
   // Track task IDs that were recently toggled so they visibly check/uncheck in-place
   // before smoothly moving in the list order.
   final Set<String> _recentlyToggledTaskIds = {};
@@ -969,6 +1063,14 @@ class _TasksScreenState extends State<TasksScreen> {
                   ),
                 ),
                 ListTile(
+                  leading: const Icon(Icons.checklist_rounded, color: _kPrimaryBlue),
+                  title: const Text('Select tasks'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _toggleSelectionMode(true);
+                  },
+                ),
+                ListTile(
                   leading: const Icon(Icons.done_all_rounded, color: _kPrimaryBlue),
                   title: const Text('Mark all as completed'),
                   onTap: () async {
@@ -1015,9 +1117,262 @@ class _TasksScreenState extends State<TasksScreen> {
     );
   }
 
+  void _showAllTasksSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        String query = '';
+
+        return StatefulBuilder(
+          builder: (sheetCtx, setSheetState) {
+            final allTasks = _cachedTasks;
+            List<TaskItem> filtered = allTasks;
+
+            if (query.trim().isNotEmpty) {
+              final q = query.trim().toLowerCase();
+              filtered = filtered.where((t) => t.title.toLowerCase().contains(q)).toList();
+            }
+
+            return DraggableScrollableSheet(
+              initialChildSize: 0.75,
+              minChildSize: 0.45,
+              maxChildSize: 0.95,
+              expand: false,
+              builder: (_, scrollController) {
+                return Column(
+                  children: [
+                    const SizedBox(height: 12),
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD6DBE7),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'All Tasks Overview',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w800,
+                                  color: _kTextHead,
+                                  letterSpacing: -0.3,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${allTasks.length} tasks total • ${allTasks.where((t) => t.isCompleted).length} completed',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: _kTextMuted,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close_rounded, color: _kTextHead),
+                            onPressed: () => Navigator.pop(sheetCtx),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: TextField(
+                        key: const Key('all_tasks_search_field'),
+                        onChanged: (v) => setSheetState(() => query = v),
+                        decoration: InputDecoration(
+                          hintText: 'Search all tasks...',
+                          hintStyle: const TextStyle(fontSize: 13, color: _kTextMuted),
+                          prefixIcon: const Icon(Icons.search_rounded, size: 20, color: _kPrimaryBlue),
+                          filled: true,
+                          fillColor: const Color(0xFFF8F9FE),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFE2E6F2)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFE2E6F2)),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Expanded(
+                      child: filtered.isEmpty
+                          ? const Center(
+                              child: Text(
+                                'No matching tasks found',
+                                style: TextStyle(color: _kTextMuted, fontSize: 14),
+                              ),
+                            )
+                          : ListView.builder(
+                              controller: scrollController,
+                              padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+                              itemCount: filtered.length,
+                              itemBuilder: (c, idx) {
+                                final t = filtered[idx];
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(color: _kCardBorder),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      GestureDetector(
+                                        onTap: () {
+                                          _toggleTaskCompletion(t);
+                                          setSheetState(() {});
+                                        },
+                                        child: Container(
+                                          width: 22,
+                                          height: 22,
+                                          decoration: BoxDecoration(
+                                            color: t.isCompleted ? _kPrimaryBlue : Colors.white,
+                                            borderRadius: BorderRadius.circular(6),
+                                            border: Border.all(color: _kPrimaryBlue, width: 1.8),
+                                          ),
+                                          child: t.isCompleted
+                                              ? const Icon(Icons.check_rounded, size: 14, color: Colors.white)
+                                              : null,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              t.title,
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w600,
+                                                color: t.isCompleted ? _kTextDone : _kTextHead,
+                                                decoration: t.isCompleted ? TextDecoration.lineThrough : null,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              _formatDueSubtitle(t),
+                                              style: const TextStyle(fontSize: 12, color: _kTextMuted),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      if (t.priority != null && t.priority!.isNotEmpty)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: _kPrimaryLight,
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Text(
+                                            t.priority!,
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: _kPrimaryBlue,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
   // ─── UI Components ─────────────────────────────────────────────────────────
 
   Widget _buildHeader() {
+    if (_isSelectionMode) {
+      final currentList = _displayedTasks;
+      final allSelected = currentList.isNotEmpty &&
+          currentList.every((t) => _selectedTaskIds.contains(t.id));
+
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: _kPrimaryLight,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFDBEAFE)),
+          ),
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.close_rounded, color: _kTextHead, size: 22),
+                tooltip: 'Cancel selection',
+                onPressed: () => _toggleSelectionMode(false),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  '${_selectedTaskIds.length} selected',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: _kTextHead,
+                  ),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _selectAllTasks,
+                icon: Icon(
+                  allSelected ? Icons.deselect_rounded : Icons.select_all_rounded,
+                  size: 18,
+                  color: _kPrimaryBlue,
+                ),
+                label: Text(
+                  allSelected ? 'Deselect all' : 'Select all',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: _kPrimaryBlue,
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline_rounded,
+                    color: Color(0xFFEF4444), size: 22),
+                tooltip: 'Delete selected',
+                onPressed: _selectedTaskIds.isEmpty ? null : _deleteSelectedTasks,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
       child: Row(
@@ -1051,6 +1406,46 @@ class _TasksScreenState extends State<TasksScreen> {
               ],
             ),
           ),
+          // Select tasks button
+          Tooltip(
+            message: 'Select tasks',
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: _kCardBg,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: _kCardBorder,
+                  width: 1.2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.03),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Material(
+                color: Colors.transparent,
+                shape: const CircleBorder(),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  mouseCursor: SystemMouseCursors.click,
+                  onTap: () => _toggleSelectionMode(true),
+                  child: const Center(
+                    child: Icon(
+                      Icons.checklist_rounded,
+                      color: Color(0xFF334155),
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
           Tooltip(
             message: 'More options',
             child: Container(
@@ -1328,6 +1723,8 @@ class _TasksScreenState extends State<TasksScreen> {
           onTap: () {
             if (_selectedFilter != TaskFilter.all) {
               setState(() => _selectedFilter = TaskFilter.all);
+            } else {
+              _showAllTasksSheet();
             }
           },
           child: Padding(
@@ -1336,7 +1733,7 @@ class _TasksScreenState extends State<TasksScreen> {
               mainAxisSize: MainAxisSize.min,
               children: const [
                 Text(
-                  'View all',
+                  'See all',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -1462,7 +1859,16 @@ class _TasksScreenState extends State<TasksScreen> {
                           key: ValueKey('task_card_${task.id}'),
                           task: task,
                           formattedDue: _formatDueSubtitle(task),
+                          isSelectionMode: _isSelectionMode,
+                          isSelected: _selectedTaskIds.contains(task.id),
                           onToggle: () => _toggleTaskCompletion(task),
+                          onSelectionTap: () => _toggleTaskSelected(task.id),
+                          onLongPress: () {
+                            if (!_isSelectionMode) {
+                              _toggleSelectionMode(true);
+                              _toggleTaskSelected(task.id);
+                            }
+                          },
                           onMenuTap: () => _showTaskMenu(task),
                         ),
                       );
@@ -1522,6 +1928,10 @@ class _TaskCard extends StatelessWidget {
   final String formattedDue;
   final VoidCallback onToggle;
   final VoidCallback onMenuTap;
+  final bool isSelectionMode;
+  final bool isSelected;
+  final VoidCallback? onSelectionTap;
+  final VoidCallback? onLongPress;
 
   const _TaskCard({
     super.key,
@@ -1529,18 +1939,29 @@ class _TaskCard extends StatelessWidget {
     required this.formattedDue,
     required this.onToggle,
     required this.onMenuTap,
+    this.isSelectionMode = false,
+    this.isSelected = false,
+    this.onSelectionTap,
+    this.onLongPress,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: _kCardBg,
+        color: isSelectionMode && isSelected
+            ? _kPrimaryBlue.withValues(alpha: 0.05)
+            : _kCardBg,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _kCardBorder, width: 1.2),
+        border: Border.all(
+          color: isSelectionMode && isSelected ? _kPrimaryBlue : _kCardBorder,
+          width: isSelectionMode && isSelected ? 1.6 : 1.2,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: isSelectionMode && isSelected
+                ? _kPrimaryBlue.withValues(alpha: 0.1)
+                : Colors.black.withValues(alpha: 0.02),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -1556,7 +1977,8 @@ class _TaskCard extends StatelessWidget {
           highlightColor: Colors.transparent,
           hoverColor: const Color(0xFFF8FAFC),
           splashColor: const Color(0xFFEFF6FF),
-          onTap: onToggle,
+          onTap: isSelectionMode ? onSelectionTap : onToggle,
+          onLongPress: onLongPress,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
@@ -1564,7 +1986,7 @@ class _TaskCard extends StatelessWidget {
                 // Checkbox: rounded rectangle with blue border and immediate checkmark
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTap: onToggle,
+                  onTap: isSelectionMode ? onSelectionTap : onToggle,
                   child: AnimatedContainer(
                     key: ValueKey('task_checkbox_${task.id}'),
                     duration: const Duration(milliseconds: 150),
@@ -1659,23 +2081,44 @@ class _TaskCard extends StatelessWidget {
 
                 const SizedBox(width: 6),
 
-                // Right: Three-dot overflow menu for actions (delete, toggle, edit)
-                Material(
-                  color: Colors.transparent,
-                  shape: const CircleBorder(),
-                  child: InkWell(
-                    customBorder: const CircleBorder(),
-                    onTap: onMenuTap,
-                    child: const Padding(
-                      padding: EdgeInsets.all(4),
-                      child: Icon(
-                        Icons.more_vert,
-                        color: _kTextMuted,
-                        size: 20,
+                // Right: Selection Checkbox or Three-dot overflow menu
+                if (isSelectionMode)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4),
+                    child: Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isSelected ? _kPrimaryBlue : Colors.transparent,
+                        border: Border.all(
+                          color: isSelected ? _kPrimaryBlue : const Color(0xFFCBD5E1),
+                          width: 1.8,
+                        ),
+                      ),
+                      child: isSelected
+                          ? const Icon(Icons.check_rounded,
+                              size: 16, color: Colors.white)
+                          : null,
+                    ),
+                  )
+                else
+                  Material(
+                    color: Colors.transparent,
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: onMenuTap,
+                      child: const Padding(
+                        padding: EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.more_vert,
+                          color: _kTextMuted,
+                          size: 20,
+                        ),
                       ),
                     ),
                   ),
-                ),
               ],
             ),
           ),

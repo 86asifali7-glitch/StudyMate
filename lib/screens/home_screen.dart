@@ -12,7 +12,6 @@ import 'vault_lock_screen.dart';
 // ─── Design Tokens matching reference design ─────────────────────────────────
 const _kBg           = Color(0xFFFFFFFF); // clean white background
 const _kPrimary      = Color(0xFF2563EB); // vibrant study blue
-const _kPrimaryDark  = Color(0xFF1D4ED8); // deeper blue
 const _kPrimaryLight = Color(0xFFEFF6FF); // soft light blue tint
 const _kBannerBorder = Color(0xFFDBEAFE); // light blue border for banner/cards
 const _kBorder       = Color(0xFFE2E8F0); // subtle border
@@ -464,30 +463,28 @@ class _HomeScreenState extends State<HomeScreen>
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 4),
       child: Row(
         children: [
-          // StudyMate app logo with book icon
+          // StudyMate app logo from assets/images
           Container(
-            width: 44,
-            height: 44,
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
-              color: _kPrimary,
-              borderRadius: BorderRadius.circular(14),
-              gradient: const LinearGradient(
-                colors: [_kPrimary, _kPrimaryDark],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+              borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: _kPrimary.withValues(alpha: 0.25),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
                 ),
               ],
             ),
-            child: const Icon(
-              Icons.auto_stories_rounded,
-              color: Colors.white,
-              size: 24,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.asset(
+                'assets/images/Homescreenlogo.png',
+                width: 42,
+                height: 42,
+                fit: BoxFit.cover,
+              ),
             ),
           ),
           const SizedBox(width: 12),

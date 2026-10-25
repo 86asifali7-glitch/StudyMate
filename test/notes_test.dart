@@ -980,5 +980,67 @@ void main() {
     expect(find.text('Advanced Calculus & Complex Integrals'), findsOneWidget);
     expect(find.text('Calculus Derivatives & Integrals'), findsNothing);
   });
+
+  testWidgets(
+      'Test NotesScreen multi-selection, select all, and batch deletion',
+      (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues({});
+    NotesScreen.resetForTesting();
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: NotesScreen(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Verify 3 default notes exist
+    expect(find.text('Calculus Derivatives & Integrals'), findsOneWidget);
+    expect(find.text("Newton's Laws of Motion Summary"), findsOneWidget);
+    expect(find.text('Organic Chemistry Reactions'), findsOneWidget);
+
+    // Tap Select Notes icon button in header
+    expect(find.byTooltip('Select Notes'), findsOneWidget);
+    await tester.tap(find.byTooltip('Select Notes'));
+    await tester.pumpAndSettle();
+
+    // Selection bar appears
+    expect(find.text('0 selected'), findsOneWidget);
+    expect(find.text('Select all'), findsOneWidget);
+
+    // Tap first note to select it
+    await tester.tap(find.text('Calculus Derivatives & Integrals'));
+    await tester.pumpAndSettle();
+    expect(find.text('1 selected'), findsOneWidget);
+
+    // Tap second note
+    await tester.tap(find.text("Newton's Laws of Motion Summary"));
+    await tester.pumpAndSettle();
+    expect(find.text('2 selected'), findsOneWidget);
+
+    // Tap "Select all"
+    await tester.tap(find.text('Select all'));
+    await tester.pumpAndSettle();
+    expect(find.text('3 selected'), findsOneWidget);
+    expect(find.text('Deselect all'), findsOneWidget);
+
+    // Deselect one note by tapping it
+    await tester.tap(find.text('Calculus Derivatives & Integrals'));
+    await tester.pumpAndSettle();
+    expect(find.text('2 selected'), findsOneWidget);
+
+    // Tap delete button in selection bar
+    await tester.tap(find.byTooltip('Delete selected'));
+    await tester.pumpAndSettle();
+
+    // Confirmation dialog
+    expect(find.text('Delete 2 Notes?'), findsOneWidget);
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+
+    // The 2 selected notes are removed, the deselected one remains
+    expect(find.text('Calculus Derivatives & Integrals'), findsOneWidget);
+    expect(find.text("Newton's Laws of Motion Summary"), findsNothing);
+  });
 }
 

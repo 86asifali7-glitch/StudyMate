@@ -368,6 +368,98 @@ class _NotesScreenState extends State<NotesScreen> {
   String? _selectedCategory;
   _SortOrder _sortOrder = _SortOrder.newestFirst;
 
+  // Selection mode for batch deleting notes
+  bool _isSelectionMode = false;
+  final Set<String> _selectedNoteIds = {};
+
+  void _toggleSelectionMode([bool? enable]) {
+    setState(() {
+      _isSelectionMode = enable ?? !_isSelectionMode;
+      if (!_isSelectionMode) {
+        _selectedNoteIds.clear();
+      }
+    });
+  }
+
+  void _toggleNoteSelected(String id) {
+    setState(() {
+      if (_selectedNoteIds.contains(id)) {
+        _selectedNoteIds.remove(id);
+      } else {
+        _selectedNoteIds.add(id);
+      }
+    });
+  }
+
+  void _selectAllNotes() {
+    setState(() {
+      final displayedNotes = _filteredNotes;
+      final displayedIds = displayedNotes.map((n) => n.id).toSet();
+      if (_selectedNoteIds.containsAll(displayedIds) && _selectedNoteIds.isNotEmpty) {
+        _selectedNoteIds.removeAll(displayedIds);
+      } else {
+        _selectedNoteIds.addAll(displayedIds);
+      }
+    });
+  }
+
+  Future<void> _deleteSelectedNotes() async {
+    if (_selectedNoteIds.isEmpty) return;
+    final count = _selectedNoteIds.length;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Delete $count Note${count > 1 ? 's' : ''}?',
+          style: const TextStyle(fontWeight: FontWeight.w700, color: _kNHead),
+        ),
+        content: Text(
+          count == 1
+              ? 'Are you sure you want to permanently delete this selected note?'
+              : 'Are you sure you want to permanently delete these $count selected notes at once?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() {
+        _cachedNotes.removeWhere((n) => _selectedNoteIds.contains(n.id));
+        _selectedNoteIds.clear();
+        _isSelectionMode = false;
+      });
+      await _persistNotes();
+      if (mounted) {
+        try {
+          ScaffoldMessenger.of(context).clearSnackBars();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$count note${count > 1 ? 's' : ''} deleted'),
+              duration: const Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+              margin: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+            ),
+          );
+        } catch (_) {}
+      }
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -918,6 +1010,15 @@ class _NotesScreenState extends State<NotesScreen> {
                 ),
                 const Divider(height: 1),
                 ListTile(
+                  leading: const Icon(Icons.checklist_rounded, color: _kNPrimary),
+                  title: const Text('Select Notes',
+                      style: TextStyle(fontWeight: FontWeight.w600, color: _kNHead)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _toggleSelectionMode(true);
+                  },
+                ),
+                ListTile(
                   leading: const Icon(Icons.arrow_downward_rounded,
                       color: _kNPrimary),
                   title: const Text('Sort by Date (Newest first)'),
@@ -1275,52 +1376,70 @@ class _NotesScreenState extends State<NotesScreen> {
   }
 
   Widget _buildHeader() {
+    if (_isSelectionMode) {
+      final filteredNotes = _filteredNotes;
+      final allSelected = filteredNotes.isNotEmpty &&
+          filteredNotes.every((n) => _selectedNoteIds.contains(n.id));
+
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: _kNPrimary.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _kNPrimary.withValues(alpha: 0.2)),
+          ),
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.close_rounded, color: _kNHead, size: 22),
+                tooltip: 'Cancel selection',
+                onPressed: () => _toggleSelectionMode(false),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  '${_selectedNoteIds.length} selected',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: _kNHead,
+                  ),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _selectAllNotes,
+                icon: Icon(
+                  allSelected ? Icons.deselect_rounded : Icons.select_all_rounded,
+                  size: 18,
+                  color: _kNPrimary,
+                ),
+                label: Text(
+                  allSelected ? 'Deselect all' : 'Select all',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: _kNPrimary,
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline_rounded,
+                    color: Color(0xFFEF4444), size: 22),
+                tooltip: 'Delete selected',
+                onPressed: _selectedNoteIds.isEmpty ? null : _deleteSelectedNotes,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 8, 20, 8),
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 8),
       child: Row(
         children: [
-          // Back button
-          IconButton(
-            icon: const Icon(Icons.chevron_left_rounded,
-                size: 28, color: _kNHead),
-            splashRadius: 22,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            onPressed: () {
-              if (Navigator.canPop(context)) {
-                Navigator.maybePop(context);
-              }
-            },
-          ),
-          const SizedBox(width: 4),
-
-          // Book Logo Squircle
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [_kNPrimary, _kNPriDark],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: _kNPrimary.withValues(alpha: 0.28),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: const Icon(
-              Icons.menu_book_rounded,
-              color: Colors.white,
-              size: 19,
-            ),
-          ),
-          const SizedBox(width: 12),
-
           // Title & Note Count
           Expanded(
             child: Column(
@@ -1330,18 +1449,18 @@ class _NotesScreenState extends State<NotesScreen> {
                 const Text(
                   'My Notes',
                   style: TextStyle(
-                    fontSize: 21,
+                    fontSize: 26,
                     fontWeight: FontWeight.w800,
                     color: _kNHead,
-                    letterSpacing: -0.4,
+                    letterSpacing: -0.5,
                     height: 1.15,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 3),
                 Text(
                   '${_cachedNotes.length} note${_cachedNotes.length == 1 ? '' : 's'} saved',
                   style: const TextStyle(
-                    fontSize: 12.5,
+                    fontSize: 13,
                     color: _kNSubHead,
                     fontWeight: FontWeight.w500,
                   ),
@@ -1349,6 +1468,29 @@ class _NotesScreenState extends State<NotesScreen> {
               ],
             ),
           ),
+
+          // Circular Select Mode Button
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              shape: BoxShape.circle,
+              border: Border.all(color: _kNSep, width: 1),
+            ),
+            child: IconButton(
+              tooltip: 'Select Notes',
+              icon: const Icon(
+                Icons.checklist_rounded,
+                size: 19,
+                color: Color(0xFF64748B),
+              ),
+              splashRadius: 20,
+              padding: EdgeInsets.zero,
+              onPressed: () => _toggleSelectionMode(true),
+            ),
+          ),
+          const SizedBox(width: 8),
 
           // Circular Search Icon Button
           Container(
@@ -1853,7 +1995,21 @@ class _NotesScreenState extends State<NotesScreen> {
                   child: _NoteCard(
                     key: ValueKey('note_card_${note.id}'),
                     note: note,
-                    onTap: () => _openNoteEditor(note: note),
+                    isSelectionMode: _isSelectionMode,
+                    isSelected: _selectedNoteIds.contains(note.id),
+                    onTap: () {
+                      if (_isSelectionMode) {
+                        _toggleNoteSelected(note.id);
+                      } else {
+                        _openNoteEditor(note: note);
+                      }
+                    },
+                    onLongPress: () {
+                      if (!_isSelectionMode) {
+                        _toggleSelectionMode(true);
+                        _toggleNoteSelected(note.id);
+                      }
+                    },
                     onDelete: () => _deleteNote(note.id),
                     onRename: () => _showRenameDialog(note),
                   ),
@@ -4001,6 +4157,9 @@ class _NoteCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onDelete;
   final VoidCallback? onRename;
+  final bool isSelectionMode;
+  final bool isSelected;
+  final VoidCallback? onLongPress;
 
   const _NoteCard({
     super.key,
@@ -4008,6 +4167,9 @@ class _NoteCard extends StatelessWidget {
     required this.onTap,
     this.onDelete,
     this.onRename,
+    this.isSelectionMode = false,
+    this.isSelected = false,
+    this.onLongPress,
   });
 
   void _showNoteOptions(BuildContext context) {
@@ -4092,18 +4254,23 @@ class _NoteCard extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         borderRadius: BorderRadius.circular(18),
         child: Ink(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: isSelectionMode && isSelected
+                ? _kNPrimary.withValues(alpha: 0.05)
+                : Colors.white,
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: _kNSep,
-              width: 1.0,
+              color: isSelectionMode && isSelected ? _kNPrimary : _kNSep,
+              width: isSelectionMode && isSelected ? 1.6 : 1.0,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.025),
+                color: isSelectionMode && isSelected
+                    ? _kNPrimary.withValues(alpha: 0.1)
+                    : Colors.black.withValues(alpha: 0.025),
                 blurRadius: 10,
                 offset: const Offset(0, 3),
               ),
@@ -4228,19 +4395,40 @@ class _NoteCard extends StatelessWidget {
                   ),
                 ),
 
-                // Three-dot options menu
-                IconButton(
-                  icon: const Icon(
-                    Icons.more_vert_rounded,
-                    color: Color(0xFF94A3B8),
-                    size: 20,
+                // Three-dot options menu or Selection Checkbox
+                if (isSelectionMode)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6, left: 4),
+                    child: Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isSelected ? _kNPrimary : Colors.transparent,
+                        border: Border.all(
+                          color: isSelected ? _kNPrimary : const Color(0xFFCBD5E1),
+                          width: 1.8,
+                        ),
+                      ),
+                      child: isSelected
+                          ? const Icon(Icons.check_rounded,
+                              size: 16, color: Colors.white)
+                          : null,
+                    ),
+                  )
+                else
+                  IconButton(
+                    icon: const Icon(
+                      Icons.more_vert_rounded,
+                      color: Color(0xFF94A3B8),
+                      size: 20,
+                    ),
+                    splashRadius: 20,
+                    padding: const EdgeInsets.all(4),
+                    constraints: const BoxConstraints(),
+                    tooltip: 'Delete Note',
+                    onPressed: () => _showNoteOptions(context),
                   ),
-                  splashRadius: 20,
-                  padding: const EdgeInsets.all(4),
-                  constraints: const BoxConstraints(),
-                  tooltip: 'Delete Note',
-                  onPressed: () => _showNoteOptions(context),
-                ),
                 const SizedBox(width: 4),
               ],
             ),

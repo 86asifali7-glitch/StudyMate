@@ -19,7 +19,9 @@ import 'package:studymate/services/vault_service.dart';
 class FakePathProviderPlatform extends Fake
     with MockPlatformInterfaceMixin
     implements PathProviderPlatform {
-  final Directory tempDir = Directory.systemTemp.createTempSync('studymate_vault_test_');
+  final Directory tempDir = Directory.systemTemp.createTempSync(
+    'studymate_vault_test_',
+  );
 
   @override
   Future<String?> getApplicationDocumentsPath() async {
@@ -73,26 +75,39 @@ void main() {
       expect(hash1, isNot(equals(hashWrong)));
     });
 
-    test('AES-256 encryption and decryption round-trip preserves byte identity', () {
-      final masterKey = VaultCrypto.generateMasterKey();
-      final originalData = Uint8List.fromList(utf8.encode('Top Secret Study Notes 2026!'));
+    test(
+      'AES-256 encryption and decryption round-trip preserves byte identity',
+      () {
+        final masterKey = VaultCrypto.generateMasterKey();
+        final originalData = Uint8List.fromList(
+          utf8.encode('Top Secret Study Notes 2026!'),
+        );
 
-      final encrypted = VaultCrypto.encryptBytes(originalData, masterKey);
-      expect(encrypted, isNot(equals(originalData)));
-      expect(encrypted.length, greaterThan(originalData.length + 16)); // includes 16-byte IV
+        final encrypted = VaultCrypto.encryptBytes(originalData, masterKey);
+        expect(encrypted, isNot(equals(originalData)));
+        expect(
+          encrypted.length,
+          greaterThan(originalData.length + 16),
+        ); // includes 16-byte IV
 
-      final decrypted = VaultCrypto.decryptBytes(encrypted, masterKey);
-      expect(decrypted, equals(originalData));
-      expect(utf8.decode(decrypted), 'Top Secret Study Notes 2026!');
-    });
+        final decrypted = VaultCrypto.decryptBytes(encrypted, masterKey);
+        expect(decrypted, equals(originalData));
+        expect(utf8.decode(decrypted), 'Top Secret Study Notes 2026!');
+      },
+    );
 
     test('decryption with incorrect key throws exception', () {
       final key1 = VaultCrypto.generateMasterKey();
       final key2 = VaultCrypto.generateMasterKey();
-      final originalData = Uint8List.fromList(utf8.encode('Confidential Exam Paper'));
+      final originalData = Uint8List.fromList(
+        utf8.encode('Confidential Exam Paper'),
+      );
 
       final encrypted = VaultCrypto.encryptBytes(originalData, key1);
-      expect(() => VaultCrypto.decryptBytes(encrypted, key2), throwsA(anything));
+      expect(
+        () => VaultCrypto.decryptBytes(encrypted, key2),
+        throwsA(anything),
+      );
     });
   });
 
@@ -195,31 +210,43 @@ void main() {
       expect(service.masterKey, isNotNull);
     });
 
-    test('importing files encrypts them on disk and decrypts accurately', () async {
-      final service = VaultService.instance;
-      await service.setupPin('1234');
+    test(
+      'importing files encrypts them on disk and decrypts accurately',
+      () async {
+        final service = VaultService.instance;
+        await service.setupPin('1234');
 
-      final testImageBytes = Uint8List.fromList([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
-      final item = await service.importFile(
-        fileName: 'id_card.png',
-        bytes: testImageBytes,
-        category: VaultCategory.image,
-      );
+        final testImageBytes = Uint8List.fromList([
+          0x89,
+          0x50,
+          0x4E,
+          0x47,
+          0x0D,
+          0x0A,
+          0x1A,
+          0x0A,
+        ]);
+        final item = await service.importFile(
+          fileName: 'id_card.png',
+          bytes: testImageBytes,
+          category: VaultCategory.image,
+        );
 
-      expect(item, isNotNull);
-      expect(service.items.length, 1);
-      expect(service.items.first.category, VaultCategory.image);
+        expect(item, isNotNull);
+        expect(service.items.length, 1);
+        expect(service.items.first.category, VaultCategory.image);
 
-      // Verify stored file on disk is encrypted (does not match plain bytes)
-      final storedFile = File(item!.localPath!);
-      expect(storedFile.existsSync(), isTrue);
-      final rawDiskBytes = await storedFile.readAsBytes();
-      expect(rawDiskBytes, isNot(equals(testImageBytes)));
+        // Verify stored file on disk is encrypted (does not match plain bytes)
+        final storedFile = File(item!.localPath!);
+        expect(storedFile.existsSync(), isTrue);
+        final rawDiskBytes = await storedFile.readAsBytes();
+        expect(rawDiskBytes, isNot(equals(testImageBytes)));
 
-      // Decrypt through service
-      final decrypted = await service.getDecryptedBytes(item);
-      expect(decrypted, equals(testImageBytes));
-    });
+        // Decrypt through service
+        final decrypted = await service.getDecryptedBytes(item);
+        expect(decrypted, equals(testImageBytes));
+      },
+    );
 
     test('create secret note encrypts and decrypts text content', () async {
       final service = VaultService.instance;
@@ -244,7 +271,9 @@ void main() {
       final service = VaultService.instance;
       await service.setupPin('1111');
 
-      final secretDoc = Uint8List.fromList(utf8.encode('Confidential Thesis Draft'));
+      final secretDoc = Uint8List.fromList(
+        utf8.encode('Confidential Thesis Draft'),
+      );
       final item = await service.importFile(
         fileName: 'thesis.pdf',
         bytes: secretDoc,
@@ -252,7 +281,11 @@ void main() {
       );
 
       // Change PIN from 1111 to 2222
-      final changeOk = await service.changePin(oldPin: '1111', newPin: '2222', hint: 'Four twos');
+      final changeOk = await service.changePin(
+        oldPin: '1111',
+        newPin: '2222',
+        hint: 'Four twos',
+      );
       expect(changeOk, isTrue);
 
       // Lock and unlock with new PIN
@@ -301,98 +334,171 @@ void main() {
   });
 
   group('Vault UI Widget Tests', () {
-    testWidgets('HomeScreen displays Personal Vault shortcut and navigates to VaultLockScreen',
-        (tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: HomeScreen(),
-        ),
-      );
-      await tester.pumpAndSettle();
+    testWidgets(
+      'HomeScreen displays Personal Vault shortcut and navigates to VaultLockScreen',
+      (tester) async {
+        await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
+        await tester.pumpAndSettle();
 
-      // Scroll down to Quick Access
-      await tester.drag(find.byType(CustomScrollView), const Offset(0, -600));
-      await tester.pumpAndSettle();
+        // Scroll down to Quick Access
+        await tester.drag(find.byType(CustomScrollView), const Offset(0, -600));
+        await tester.pumpAndSettle();
 
-      // Check Personal Vault card exists
-      expect(find.text('Personal Vault'), findsWidgets);
-      expect(find.text('Encrypted media, files & secret notes'), findsOneWidget);
+        // Check Personal Vault card exists
+        expect(find.text('Personal Vault'), findsWidgets);
+        expect(
+          find.text('Encrypted media, files & secret notes'),
+          findsOneWidget,
+        );
 
-      // Tap on Personal Vault card
-      await tester.tap(find.text('Personal Vault').first);
-      await tester.pumpAndSettle();
+        // Tap on Personal Vault card
+        await tester.tap(find.text('Personal Vault').first);
+        await tester.pumpAndSettle();
 
-      // Arrives on VaultLockScreen in setup mode
-      expect(find.byType(VaultLockScreen), findsOneWidget);
-      expect(find.text('Set Up Vault PIN'), findsOneWidget);
-    });
+        // Arrives on VaultLockScreen in setup mode
+        expect(find.byType(VaultLockScreen), findsOneWidget);
+        expect(find.text('Set Up Vault PIN'), findsOneWidget);
+      },
+    );
 
-    testWidgets('VaultLockScreen setup PIN flow unlocks and opens VaultHomeScreen',
-        (tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: VaultLockScreen(),
-        ),
-      );
-      await tester.pumpAndSettle();
+    testWidgets(
+      'VaultLockScreen setup PIN flow unlocks and opens VaultHomeScreen',
+      (tester) async {
+        await tester.pumpWidget(const MaterialApp(home: VaultLockScreen()));
+        await tester.pumpAndSettle();
 
-      expect(find.text('Set Up Vault PIN'), findsOneWidget);
+        expect(find.text('Set Up Vault PIN'), findsOneWidget);
 
-      // Enter 1, 2, 3, 4
-      await tester.tap(find.text('1'));
-      await tester.pump(const Duration(milliseconds: 50));
-      await tester.tap(find.text('2'));
-      await tester.pump(const Duration(milliseconds: 50));
-      await tester.tap(find.text('3'));
-      await tester.pump(const Duration(milliseconds: 50));
-      await tester.tap(find.text('4'));
-      await tester.pumpAndSettle();
+        // Enter 1, 2, 3, 4
+        await tester.tap(find.text('1'));
+        await tester.pump(const Duration(milliseconds: 50));
+        await tester.tap(find.text('2'));
+        await tester.pump(const Duration(milliseconds: 50));
+        await tester.tap(find.text('3'));
+        await tester.pump(const Duration(milliseconds: 50));
+        await tester.tap(find.text('4'));
+        await tester.pumpAndSettle();
 
-      // Prompts to confirm
-      expect(find.text('Confirm Vault PIN'), findsOneWidget);
+        // Prompts to confirm
+        expect(find.text('Confirm Vault PIN'), findsOneWidget);
 
-      // Confirm with 1, 2, 3, 4
-      await tester.tap(find.text('1'));
-      await tester.pump(const Duration(milliseconds: 50));
-      await tester.tap(find.text('2'));
-      await tester.pump(const Duration(milliseconds: 50));
-      await tester.tap(find.text('3'));
-      await tester.pump(const Duration(milliseconds: 50));
-      await tester.tap(find.text('4'));
-      await tester.pumpAndSettle();
+        // Confirm with 1, 2, 3, 4
+        await tester.tap(find.text('1'));
+        await tester.pump(const Duration(milliseconds: 50));
+        await tester.tap(find.text('2'));
+        await tester.pump(const Duration(milliseconds: 50));
+        await tester.tap(find.text('3'));
+        await tester.pump(const Duration(milliseconds: 50));
+        await tester.tap(find.text('4'));
+        await tester.pumpAndSettle();
 
-      // Security hint dialog appears -> tap Skip
-      expect(find.text('Security Hint'), findsOneWidget);
-      await tester.tap(find.text('Skip'));
-      await tester.pumpAndSettle();
+        // Security hint dialog appears -> tap Skip
+        expect(find.text('Security Hint'), findsOneWidget);
+        await tester.tap(find.text('Skip'));
+        await tester.pumpAndSettle();
 
-      // Successfully arrives at VaultHomeScreen
-      expect(find.byType(VaultHomeScreen), findsOneWidget);
-      expect(find.text('Personal Vault'), findsOneWidget);
-      expect(find.text('AES-256'), findsOneWidget);
-      expect(find.text('Images'), findsOneWidget);
-      expect(find.text('Videos'), findsOneWidget);
-      expect(find.text('Audio'), findsOneWidget);
-      expect(find.text('PDFs & Notes'), findsOneWidget);
+        // Successfully arrives at VaultHomeScreen
+        expect(find.byType(VaultHomeScreen), findsOneWidget);
+        expect(find.text('Personal Vault'), findsOneWidget);
+        expect(find.text('AES-256'), findsOneWidget);
+        expect(find.text('Images'), findsOneWidget);
+        expect(find.text('Videos'), findsOneWidget);
+        expect(find.text('Audio'), findsOneWidget);
+        expect(find.text('PDFs & Notes'), findsOneWidget);
 
-      // Verify FAB dynamically changes label according to active tab
-      // Tab 0 (Images) -> "Add Image"
-      expect(find.text('Add Image'), findsWidgets);
+        // Verify FAB dynamically changes label according to active tab
+        // Tab 0 (Images) -> "Add Image"
+        expect(find.text('Add Image'), findsWidgets);
 
-      // Switch to Tab 1 (Videos) -> FAB changes to "Add Video"
-      await tester.tap(find.text('Videos'));
-      await tester.pumpAndSettle();
-      expect(find.text('Add Video'), findsWidgets);
+        // Switch to Tab 1 (Videos) -> FAB changes to "Add Video"
+        await tester.tap(find.text('Videos'));
+        await tester.pumpAndSettle();
+        expect(find.text('Add Video'), findsWidgets);
 
-      // Switch to Tab 2 (Audio) -> FAB changes to "Add Music"
-      await tester.tap(find.text('Audio'));
-      await tester.pumpAndSettle();
-      expect(find.text('Add Music'), findsWidgets);
+        // Switch to Tab 2 (Audio) -> FAB changes to "Add Music"
+        await tester.tap(find.text('Audio'));
+        await tester.pumpAndSettle();
+        expect(find.text('Add Music'), findsWidgets);
 
-      // Switch to Tab 3 (PDFs & Notes) -> FAB changes to "Add PDF / Note"
-      await tester.tap(find.text('PDFs & Notes'));
-      await tester.pumpAndSettle();
-      expect(find.text('Add PDF / Note'), findsWidgets);
-    });
+        // Switch to Tab 3 (PDFs & Notes) -> FAB changes to "Add PDF / Note"
+        await tester.tap(find.text('PDFs & Notes'));
+        await tester.pumpAndSettle();
+        expect(find.text('Add PDF / Note'), findsWidgets);
+      },
+    );
+
+    testWidgets(
+      'VaultHomeScreen outside direct delete and multi-selection batch deletion',
+      (WidgetTester tester) async {
+        final service = VaultService.instance;
+        await service.resetVault();
+        await service.setupPin('1234');
+        await service.createSecretNote(
+          title: 'Secret Alpha',
+          content: 'Content Alpha',
+        );
+        await service.createSecretNote(
+          title: 'Secret Beta',
+          content: 'Content Beta',
+        );
+        await service.createSecretNote(
+          title: 'Secret Gamma',
+          content: 'Content Gamma',
+        );
+
+        await tester.pumpWidget(const MaterialApp(home: VaultHomeScreen()));
+        await tester.pumpAndSettle();
+
+        // Switch to PDFs & Notes tab
+        await tester.tap(find.text('PDFs & Notes'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Secret Alpha'), findsOneWidget);
+        expect(find.text('Secret Beta'), findsOneWidget);
+        expect(find.text('Secret Gamma'), findsOneWidget);
+
+        // 1. Direct delete from outside (without opening note)
+        final deleteButtons = find.byTooltip('Delete');
+        expect(deleteButtons, findsWidgets);
+        await tester.tap(deleteButtons.first);
+        await tester.pumpAndSettle();
+
+        expect(find.text('Delete from Vault?'), findsOneWidget);
+        await tester.tap(find.text('Delete'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Secret Alpha'), findsNothing);
+        expect(find.text('Secret Beta'), findsOneWidget);
+        expect(find.text('Secret Gamma'), findsOneWidget);
+
+        // 2. Multi-selection mode and batch delete
+        expect(find.byTooltip('Select Files'), findsOneWidget);
+        await tester.tap(find.byTooltip('Select Files'));
+        await tester.pumpAndSettle();
+
+        // Selection bar appears
+        expect(find.text('0 selected'), findsOneWidget);
+        expect(find.text('Select all'), findsOneWidget);
+
+        // Tap "Select all"
+        await tester.tap(find.text('Select all'));
+        await tester.pumpAndSettle();
+        expect(find.text('2 selected'), findsOneWidget);
+        expect(find.text('Deselect all'), findsOneWidget);
+
+        // Tap delete button in selection bar
+        await tester.tap(find.byTooltip('Delete selected'));
+        await tester.pumpAndSettle();
+
+        // Confirmation dialog
+        expect(find.text('Delete 2 Encrypted Files?'), findsOneWidget);
+        await tester.tap(find.text('Delete'));
+        await tester.pumpAndSettle();
+
+        // Both notes are now deleted
+        expect(find.text('Secret Beta'), findsNothing);
+        expect(find.text('Secret Gamma'), findsNothing);
+      },
+    );
   });
 }

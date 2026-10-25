@@ -39,6 +39,110 @@ class _VaultHomeScreenState extends State<VaultHomeScreen>
   String _searchQuery = '';
   bool _isImporting = false;
   bool _filterFavoritesOnly = false;
+  bool _isSelectionMode = false;
+  final Set<String> _selectedItemIds = {};
+
+  VaultCategory get _currentCategory {
+    switch (_tabController.index) {
+      case 0:
+        return VaultCategory.image;
+      case 1:
+        return VaultCategory.video;
+      case 2:
+        return VaultCategory.audio;
+      case 3:
+      default:
+        return VaultCategory.pdfNotes;
+    }
+  }
+
+  void _toggleSelectionMode([bool? enable]) {
+    setState(() {
+      _isSelectionMode = enable ?? !_isSelectionMode;
+      if (!_isSelectionMode) {
+        _selectedItemIds.clear();
+      }
+    });
+  }
+
+  void _toggleItemSelected(String id) {
+    setState(() {
+      if (_selectedItemIds.contains(id)) {
+        _selectedItemIds.remove(id);
+      } else {
+        _selectedItemIds.add(id);
+      }
+    });
+  }
+
+  void _selectAllItems(VaultCategory category) {
+    setState(() {
+      final currentItems = _getFilteredItems(category);
+      final currentIds = currentItems.map((e) => e.id).toSet();
+      if (_selectedItemIds.containsAll(currentIds) && _selectedItemIds.isNotEmpty) {
+        _selectedItemIds.removeAll(currentIds);
+      } else {
+        _selectedItemIds.addAll(currentIds);
+      }
+    });
+  }
+
+  Future<void> _deleteSelectedItems() async {
+    if (_selectedItemIds.isEmpty) return;
+    final count = _selectedItemIds.length;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _kCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Delete $count Encrypted File${count > 1 ? 's' : ''}?',
+          style: const TextStyle(fontWeight: FontWeight.w700, color: _kTextHead),
+        ),
+        content: Text(
+          count == 1
+              ? 'Are you sure you want to permanently delete this selected file from your encrypted vault?'
+              : 'Are you sure you want to permanently delete these $count selected files from your encrypted vault?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel', style: TextStyle(color: _kTextBody)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _kRedTag,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final idsToDelete = List<String>.from(_selectedItemIds);
+      setState(() {
+        _selectedItemIds.clear();
+        _isSelectionMode = false;
+      });
+      for (final id in idsToDelete) {
+        await VaultService.instance.deleteItem(id);
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$count file${count > 1 ? 's' : ''} deleted from vault'),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    }
+  }
 
   final ImagePicker _imagePicker = ImagePicker();
 
@@ -791,6 +895,67 @@ class _VaultHomeScreenState extends State<VaultHomeScreen>
   }
 
   Widget _buildTopBar(BuildContext context) {
+    if (_isSelectionMode) {
+      final currentCategory = _currentCategory;
+      final currentItems = _getFilteredItems(currentCategory);
+      final allSelected = currentItems.isNotEmpty &&
+          currentItems.every((item) => _selectedItemIds.contains(item.id));
+
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: _kVaultPurple.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _kVaultPurple.withValues(alpha: 0.25)),
+          ),
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.close_rounded, color: _kTextHead, size: 22),
+                tooltip: 'Cancel selection',
+                onPressed: () => _toggleSelectionMode(false),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  '${_selectedItemIds.length} selected',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: _kTextHead,
+                  ),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: () => _selectAllItems(currentCategory),
+                icon: Icon(
+                  allSelected ? Icons.deselect_rounded : Icons.select_all_rounded,
+                  size: 18,
+                  color: _kVaultPurple,
+                ),
+                label: Text(
+                  allSelected ? 'Deselect all' : 'Select all',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: _kVaultPurple,
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline_rounded,
+                    color: _kRedTag, size: 22),
+                tooltip: 'Delete selected files',
+                onPressed: _selectedItemIds.isEmpty ? null : _deleteSelectedItems,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
       child: Row(
@@ -863,6 +1028,20 @@ class _VaultHomeScreenState extends State<VaultHomeScreen>
               ],
             ),
           ),
+          // Select Mode Button
+          IconButton(
+            tooltip: 'Select Files',
+            icon: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: _kPrimaryLight,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.checklist_rounded, color: _kVaultPurple, size: 18),
+            ),
+            onPressed: () => _toggleSelectionMode(true),
+          ),
           // Lock Button
           IconButton(
             tooltip: 'Lock Vault',
@@ -882,7 +1061,9 @@ class _VaultHomeScreenState extends State<VaultHomeScreen>
             icon: const Icon(Icons.more_vert_rounded, color: _kTextBody),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             onSelected: (val) {
-              if (val == 'change_pin') {
+              if (val == 'select') {
+                _toggleSelectionMode(true);
+              } else if (val == 'change_pin') {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const VaultLockScreen(isChangingPin: true)),
@@ -892,6 +1073,16 @@ class _VaultHomeScreenState extends State<VaultHomeScreen>
               }
             },
             itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'select',
+                child: Row(
+                  children: [
+                    Icon(Icons.checklist_rounded, size: 18, color: _kVaultPurple),
+                    SizedBox(width: 10),
+                    Text('Select Files'),
+                  ],
+                ),
+              ),
               const PopupMenuItem(
                 value: 'change_pin',
                 child: Row(
@@ -1025,73 +1216,134 @@ class _VaultHomeScreenState extends State<VaultHomeScreen>
   }
 
   Widget _buildImageGridTile(VaultItem item) {
+    final isSelected = _selectedItemIds.contains(item.id);
+
     return GestureDetector(
-      onTap: () => _openItem(item),
-      child: Container(
+      onTap: () {
+        if (_isSelectionMode) {
+          _toggleItemSelected(item.id);
+        } else {
+          _openItem(item);
+        }
+      },
+      onLongPress: () {
+        if (!_isSelectionMode) {
+          _toggleSelectionMode(true);
+          _toggleItemSelected(item.id);
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
         decoration: BoxDecoration(
           color: _kCard,
           borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: _isSelectionMode && isSelected
+                ? _kVaultPurple
+                : Colors.transparent,
+            width: _isSelectionMode && isSelected ? 2.0 : 0,
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
+              color: _isSelectionMode && isSelected
+                  ? _kVaultPurple.withValues(alpha: 0.15)
+                  : Colors.black.withValues(alpha: 0.04),
               blurRadius: 10,
               offset: const Offset(0, 3),
             ),
           ],
         ),
         clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: Stack(
           children: [
-            Expanded(
-              child: FutureBuilder(
-                future: VaultService.instance.getDecryptedBytes(item),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.done && snapshot.data != null) {
-                    return Image.memory(
-                      snapshot.data!,
-                      fit: BoxFit.cover,
-                    );
-                  }
-                  return Container(
-                    color: _kVaultPurple.withValues(alpha: 0.08),
-                    child: const Center(
-                      child: Icon(Icons.lock_rounded, color: _kVaultPurple, size: 28),
-                    ),
-                  );
-                },
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(10),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: _kTextHead,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: FutureBuilder(
+                    future: VaultService.instance.getDecryptedBytes(item),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.done && snapshot.data != null) {
+                        return Image.memory(
+                          snapshot.data!,
+                          fit: BoxFit.cover,
+                        );
+                      }
+                      return Container(
+                        color: _kVaultPurple.withValues(alpha: 0.08),
+                        child: const Center(
+                          child: Icon(Icons.lock_rounded, color: _kVaultPurple, size: 28),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: _kTextHead,
+                              ),
+                            ),
+                            Text(
+                              item.formattedSize,
+                              style: const TextStyle(fontSize: 10, color: _kTextBody),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (!_isSelectionMode) ...[
+                        GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => _confirmDelete(item),
+                          child: const Tooltip(
+                            message: 'Delete',
+                            child: Padding(
+                              padding: EdgeInsets.all(4),
+                              child: Icon(Icons.delete_outline_rounded,
+                                  color: _kRedTag, size: 16),
+                            ),
                           ),
                         ),
-                        Text(
-                          item.formattedSize,
-                          style: const TextStyle(fontSize: 10, color: _kTextBody),
-                        ),
+                        if (item.isFavorite)
+                          const Icon(Icons.star_rounded, color: Colors.amber, size: 16),
                       ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (_isSelectionMode)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isSelected ? _kVaultPurple : Colors.black45,
+                    border: Border.all(
+                      color: Colors.white,
+                      width: 1.8,
                     ),
                   ),
-                  if (item.isFavorite)
-                    const Icon(Icons.star_rounded, color: Colors.amber, size: 16),
-                ],
+                  child: isSelected
+                      ? const Icon(Icons.check_rounded, size: 16, color: Colors.white)
+                      : null,
+                ),
               ),
-            ),
           ],
         ),
       ),
@@ -1099,6 +1351,7 @@ class _VaultHomeScreenState extends State<VaultHomeScreen>
   }
 
   Widget _buildItemCard(VaultItem item) {
+    final isSelected = _selectedItemIds.contains(item.id);
     IconData icon;
     Color iconColor;
 
@@ -1126,15 +1379,37 @@ class _VaultHomeScreenState extends State<VaultHomeScreen>
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(18),
-          onTap: () => _openItem(item),
+          onTap: () {
+            if (_isSelectionMode) {
+              _toggleItemSelected(item.id);
+            } else {
+              _openItem(item);
+            }
+          },
+          onLongPress: () {
+            if (!_isSelectionMode) {
+              _toggleSelectionMode(true);
+              _toggleItemSelected(item.id);
+            }
+          },
           child: Ink(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: _kCard,
+              color: _isSelectionMode && isSelected
+                  ? _kVaultPurple.withValues(alpha: 0.05)
+                  : _kCard,
               borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: _isSelectionMode && isSelected
+                    ? _kVaultPurple
+                    : _kBorder,
+                width: _isSelectionMode && isSelected ? 1.6 : 1.0,
+              ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
+                  color: _isSelectionMode && isSelected
+                      ? _kVaultPurple.withValues(alpha: 0.12)
+                      : Colors.black.withValues(alpha: 0.04),
                   blurRadius: 10,
                   offset: const Offset(0, 3),
                 ),
@@ -1178,59 +1453,91 @@ class _VaultHomeScreenState extends State<VaultHomeScreen>
                     ],
                   ),
                 ),
-                IconButton(
-                  icon: Icon(
-                    item.isFavorite ? Icons.star_rounded : Icons.star_border_rounded,
-                    color: item.isFavorite ? Colors.amber : _kTextBody,
-                    size: 20,
+                if (_isSelectionMode)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 6, right: 4),
+                    child: Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isSelected ? _kVaultPurple : Colors.transparent,
+                        border: Border.all(
+                          color: isSelected ? _kVaultPurple : const Color(0xFFCBD5E1),
+                          width: 1.8,
+                        ),
+                      ),
+                      child: isSelected
+                          ? const Icon(Icons.check_rounded, size: 16, color: Colors.white)
+                          : null,
+                    ),
+                  )
+                else ...[
+                  // Direct delete button from outside
+                  IconButton(
+                    tooltip: 'Delete',
+                    icon: const Icon(
+                      Icons.delete_outline_rounded,
+                      color: _kRedTag,
+                      size: 20,
+                    ),
+                    onPressed: () => _confirmDelete(item),
                   ),
-                  onPressed: () => VaultService.instance.toggleFavorite(item.id),
-                ),
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert_rounded, size: 18, color: _kTextBody),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  onSelected: (val) {
-                    if (val == 'open') {
-                      _openItem(item);
-                    } else if (val == 'rename') {
-                      _showRenameDialog(item);
-                    } else if (val == 'delete') {
-                      _confirmDelete(item);
-                    }
-                  },
-                  itemBuilder: (_) => [
-                    const PopupMenuItem(
-                      value: 'open',
-                      child: Row(
-                        children: [
-                          Icon(Icons.lock_open_rounded, size: 16),
-                          SizedBox(width: 8),
-                          Text('Open'),
-                        ],
-                      ),
+                  IconButton(
+                    tooltip: item.isFavorite ? 'Remove Favorite' : 'Add Favorite',
+                    icon: Icon(
+                      item.isFavorite ? Icons.star_rounded : Icons.star_border_rounded,
+                      color: item.isFavorite ? Colors.amber : _kTextBody,
+                      size: 20,
                     ),
-                    const PopupMenuItem(
-                      value: 'rename',
-                      child: Row(
-                        children: [
-                          Icon(Icons.edit_outlined, size: 16),
-                          SizedBox(width: 8),
-                          Text('Rename'),
-                        ],
+                    onPressed: () => VaultService.instance.toggleFavorite(item.id),
+                  ),
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert_rounded, size: 18, color: _kTextBody),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    onSelected: (val) {
+                      if (val == 'open') {
+                        _openItem(item);
+                      } else if (val == 'rename') {
+                        _showRenameDialog(item);
+                      } else if (val == 'delete') {
+                        _confirmDelete(item);
+                      }
+                    },
+                    itemBuilder: (_) => [
+                      const PopupMenuItem(
+                        value: 'open',
+                        child: Row(
+                          children: [
+                            Icon(Icons.lock_open_rounded, size: 16),
+                            SizedBox(width: 8),
+                            Text('Open'),
+                          ],
+                        ),
                       ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(Icons.delete_outline_rounded, size: 16, color: _kRedTag),
-                          SizedBox(width: 8),
-                          Text('Delete', style: TextStyle(color: _kRedTag)),
-                        ],
+                      const PopupMenuItem(
+                        value: 'rename',
+                        child: Row(
+                          children: [
+                            Icon(Icons.edit_outlined, size: 16),
+                            SizedBox(width: 8),
+                            Text('Rename'),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Row(
+                          children: [
+                            Icon(Icons.delete_outline_rounded, size: 16, color: _kRedTag),
+                            SizedBox(width: 8),
+                            Text('Delete', style: TextStyle(color: _kRedTag)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
