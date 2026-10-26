@@ -519,58 +519,58 @@ class _NotesScreenState extends State<NotesScreen> {
       _SubjectCategory(
         name: 'Physics',
         isAtom: true,
-        iconColor: Color(0xFF2563EB),
-        bgColor: Color(0xFFEFF6FF),
+        iconColor: _kNPrimary,
+        bgColor: _kNPrimaryLight,
         borderColor: Color(0xFFDBEAFE),
       ),
       _SubjectCategory(
         name: 'Mathematics',
         icon: Icons.calculate_rounded,
-        iconColor: Color(0xFF7C3AED),
-        bgColor: Color(0xFFF5F3FF),
-        borderColor: Color(0xFFEDE9FE),
+        iconColor: _kNPrimary,
+        bgColor: _kNPrimaryLight,
+        borderColor: Color(0xFFDBEAFE),
       ),
       _SubjectCategory(
         name: 'English',
         icon: Icons.menu_book_rounded,
-        iconColor: Color(0xFF16A34A),
-        bgColor: Color(0xFFF0FDF4),
-        borderColor: Color(0xFFDCFCE7),
+        iconColor: _kNPrimary,
+        bgColor: _kNPrimaryLight,
+        borderColor: Color(0xFFDBEAFE),
       ),
       _SubjectCategory(
         name: 'Chemistry',
         icon: Icons.biotech_rounded,
-        iconColor: Color(0xFFD97706),
-        bgColor: Color(0xFFFFFBEB),
-        borderColor: Color(0xFFFEF3C7),
+        iconColor: _kNPrimary,
+        bgColor: _kNPrimaryLight,
+        borderColor: Color(0xFFDBEAFE),
       ),
       _SubjectCategory(
         name: 'Biology',
         icon: Icons.spa_rounded,
-        iconColor: Color(0xFF059669),
-        bgColor: Color(0xFFECFDF5),
-        borderColor: Color(0xFFD1FAE5),
+        iconColor: _kNPrimary,
+        bgColor: _kNPrimaryLight,
+        borderColor: Color(0xFFDBEAFE),
       ),
       _SubjectCategory(
         name: 'Computer Science',
         icon: Icons.code_rounded,
-        iconColor: Color(0xFF2563EB),
-        bgColor: Color(0xFFEFF6FF),
+        iconColor: _kNPrimary,
+        bgColor: _kNPrimaryLight,
         borderColor: Color(0xFFDBEAFE),
       ),
       _SubjectCategory(
         name: 'Urdu',
         icon: Icons.translate_rounded,
-        iconColor: Color(0xFFDB2777),
-        bgColor: Color(0xFFFDF2F8),
-        borderColor: Color(0xFFFCE7F3),
+        iconColor: _kNPrimary,
+        bgColor: _kNPrimaryLight,
+        borderColor: Color(0xFFDBEAFE),
       ),
       _SubjectCategory(
         name: 'Others',
         icon: Icons.more_horiz_rounded,
-        iconColor: Color(0xFF64748B),
-        bgColor: Color(0xFFF8FAFC),
-        borderColor: Color(0xFFE2E8F0),
+        iconColor: _kNPrimary,
+        bgColor: _kNPrimaryLight,
+        borderColor: Color(0xFFDBEAFE),
       ),
     ];
 
@@ -587,9 +587,9 @@ class _NotesScreenState extends State<NotesScreen> {
           _SubjectCategory(
             name: sub,
             icon: Icons.label_outline_rounded,
-            iconColor: const Color(0xFF0284C7),
-            bgColor: const Color(0xFFF0F9FF),
-            borderColor: const Color(0xFFE0F2FE),
+            iconColor: _kNPrimary,
+            bgColor: _kNPrimaryLight,
+            borderColor: const Color(0xFFDBEAFE),
           ),
         );
       }
@@ -1240,6 +1240,15 @@ class _NotesScreenState extends State<NotesScreen> {
               color: isSelected ? _kNPrimary : _kNSep,
               width: isSelected ? 1.8 : 1.0,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: isSelected
+                    ? _kNPrimary.withValues(alpha: 0.08)
+                    : Colors.black.withValues(alpha: 0.02),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: Row(
             children: [
@@ -1248,21 +1257,25 @@ class _NotesScreenState extends State<NotesScreen> {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: bgColor,
+                  color: isSelected ? Colors.white : _kNPrimaryLight,
                   shape: BoxShape.circle,
+                  border: Border.all(
+                    color: const Color(0xFFDBEAFE),
+                    width: 0.8,
+                  ),
                 ),
                 alignment: Alignment.center,
                 child: isAtom
-                    ? SizedBox(
+                    ? const SizedBox(
                         width: 20,
                         height: 20,
                         child: CustomPaint(
-                          painter: _AtomIconPainter(iconColor),
+                          painter: _AtomIconPainter(_kNPrimary),
                         ),
                       )
                     : Icon(
                         icon ?? Icons.label_outline_rounded,
-                        color: iconColor,
+                        color: _kNPrimary,
                         size: 20,
                       ),
               ),
@@ -1301,15 +1314,17 @@ class _NotesScreenState extends State<NotesScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
+                  color: isSelected
+                      ? const Color(0xFFDBEAFE)
+                      : const Color(0xFFF1F5F9),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   '$count note${count == 1 ? '' : 's'}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: _kNSubHead,
+                    color: isSelected ? _kNPrimary : _kNSubHead,
                   ),
                 ),
               ),
@@ -1795,129 +1810,161 @@ class _NotesScreenState extends State<NotesScreen> {
 
         const SizedBox(height: 10),
 
-        // Horizontally scrollable row
-        SizedBox(
-          height: 104,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            itemCount: categories.length,
-            itemBuilder: (context, index) {
-              final cat = categories[index];
-              final count = _getCategoryCount(cat.name);
-              final isSelected = _selectedCategory != null &&
-                  _selectedCategory!.toLowerCase() == cat.name.toLowerCase();
+        // Horizontally scrollable row with responsive card sizing & peek affordance
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final screenWidth = constraints.maxWidth;
+            const double horizontalPad = 20.0;
+            const double spacing = 10.0;
 
-              return Padding(
-                padding: const EdgeInsets.only(right: 10),
-                child: GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      if (isSelected) {
-                        _selectedCategory = null;
-                      } else {
-                        _selectedCategory = cat.name;
-                      }
-                    });
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    width: 98,
-                    padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
-                    decoration: BoxDecoration(
-                      color: cat.bgColor,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: isSelected ? _kNPrimary : cat.borderColor,
-                        width: isSelected ? 2.0 : 1.0,
-                      ),
-                      boxShadow: isSelected
-                          ? [
-                              BoxShadow(
-                                color: _kNPrimary.withValues(alpha: 0.16),
-                                blurRadius: 8,
-                                offset: const Offset(0, 3),
-                              ),
-                            ]
-                          : null,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Circular Icon
-                        Container(
-                          width: 34,
-                          height: 34,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.03),
-                                blurRadius: 5,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          alignment: Alignment.center,
-                          child: cat.isAtom
-                              ? SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CustomPaint(
-                                    painter: _AtomIconPainter(cat.iconColor),
-                                  ),
-                                )
-                              : Icon(
-                                  cat.icon ?? Icons.label_outline_rounded,
-                                  color: cat.iconColor,
-                                  size: 18,
-                                ),
-                        ),
-                        const Spacer(),
-                        // Subject Label
-                        Text(
-                          cat.name,
-                          style: const TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
-                            color: _kNHead,
-                            letterSpacing: -0.2,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        // Count + chevron
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                '$count note${count == 1 ? '' : 's'}',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w500,
-                                  color: _kNSubHead,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const Icon(
-                              Icons.chevron_right_rounded,
-                              size: 14,
-                              color: Color(0xFF94A3B8),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
+            // Responsive card sizing: displays full cards with a clean peek (~30-33%) of the next card
+            double cardWidth;
+            if (screenWidth < 600) {
+              const double peekRatio = 0.32;
+              cardWidth = (screenWidth - horizontalPad - (3 * spacing)) / (3 + peekRatio);
+              cardWidth = cardWidth.clamp(94.0, 124.0);
+            } else {
+              cardWidth = 114.0;
+            }
+
+            return SizedBox(
+              height: 108,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(
+                  parent: AlwaysScrollableScrollPhysics(),
                 ),
-              );
-            },
-          ),
+                padding: const EdgeInsets.symmetric(horizontal: horizontalPad),
+                itemCount: categories.length,
+                itemBuilder: (context, index) {
+                  final cat = categories[index];
+                  final count = _getCategoryCount(cat.name);
+                  final isSelected = _selectedCategory != null &&
+                      _selectedCategory!.toLowerCase() == cat.name.toLowerCase();
+
+                  return Padding(
+                    padding: EdgeInsets.only(
+                      right: index == categories.length - 1 ? 0 : spacing,
+                    ),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      width: cardWidth,
+                      decoration: BoxDecoration(
+                        color: isSelected ? _kNPrimaryLight : Colors.white,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: isSelected ? _kNPrimary : _kNSep,
+                          width: isSelected ? 1.8 : 1.0,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: isSelected
+                                ? _kNPrimary.withValues(alpha: 0.12)
+                                : Colors.black.withValues(alpha: 0.025),
+                            blurRadius: isSelected ? 8 : 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(18),
+                          onTap: () {
+                            setState(() {
+                              if (isSelected) {
+                                _selectedCategory = null;
+                              } else {
+                                _selectedCategory = cat.name;
+                              }
+                            });
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Circular Icon Container
+                                Container(
+                                  width: 34,
+                                  height: 34,
+                                  decoration: BoxDecoration(
+                                    color: isSelected ? Colors.white : _kNPrimaryLight,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: const Color(0xFFDBEAFE),
+                                      width: 0.8,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.025),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 1.5),
+                                      ),
+                                    ],
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: cat.isAtom
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CustomPaint(
+                                            painter: _AtomIconPainter(_kNPrimary),
+                                          ),
+                                        )
+                                      : Icon(
+                                          cat.icon ?? Icons.label_outline_rounded,
+                                          color: _kNPrimary,
+                                          size: 18,
+                                        ),
+                                ),
+                                const Spacer(),
+                                // Subject Label
+                                Text(
+                                  cat.name,
+                                  style: const TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: _kNHead,
+                                    letterSpacing: -0.2,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                // Count + chevron
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        '$count note${count == 1 ? '' : 's'}',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w500,
+                                          color: isSelected ? _kNPrimary : _kNSubHead,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    Icon(
+                                      Icons.chevron_right_rounded,
+                                      size: 14,
+                                      color: isSelected ? _kNPrimary : const Color(0xFF94A3B8),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            );
+          },
         ),
       ],
     );
@@ -2746,7 +2793,7 @@ class RichTextEditingController extends TextEditingController {
         lineSpans.add(TextSpan(
           text: prefix,
           style: baseStyle.copyWith(
-            color: const Color(0xFF4854F5),
+            color: _kNPrimary,
             fontWeight: FontWeight.bold,
             fontSize: 16,
           ),
@@ -2757,7 +2804,7 @@ class RichTextEditingController extends TextEditingController {
         lineSpans.add(TextSpan(
           text: prefix,
           style: baseStyle.copyWith(
-            color: const Color(0xFF4854F5),
+            color: _kNPrimary,
             fontWeight: FontWeight.w700,
           ),
         ));
@@ -2790,7 +2837,7 @@ class RichTextEditingController extends TextEditingController {
             lineSpans.add(TextSpan(
               text: m.group(0)!,
               style: runTextStyle.copyWith(
-                color: const Color(0xFF3B46EC),
+                color: _kNPrimary,
                 fontWeight: FontWeight.w600,
               ),
             ));
@@ -3151,7 +3198,7 @@ class NoteEditorScreenState extends State<NoteEditorScreen> {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF1B1E36),
+                    color: _kNHead,
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -3163,8 +3210,8 @@ class NoteEditorScreenState extends State<NoteEditorScreen> {
                     leading: Icon(
                       opt['icon'] as IconData,
                       color: isSelected
-                          ? const Color(0xFF4854F5)
-                          : const Color(0xFF6B7280),
+                          ? _kNPrimary
+                          : _kNSubHead,
                     ),
                     title: Text(
                       opt['label'] as String,
@@ -3172,13 +3219,13 @@ class NoteEditorScreenState extends State<NoteEditorScreen> {
                         fontWeight:
                             isSelected ? FontWeight.w700 : FontWeight.w500,
                         color: isSelected
-                            ? const Color(0xFF4854F5)
-                            : const Color(0xFF1B1E36),
+                            ? _kNPrimary
+                            : _kNHead,
                       ),
                     ),
                     trailing: isSelected
                         ? const Icon(Icons.check_rounded,
-                            color: Color(0xFF4854F5))
+                            color: _kNPrimary)
                         : null,
                     onTap: () {
                       Navigator.pop(ctx);
@@ -3408,7 +3455,7 @@ class NoteEditorScreenState extends State<NoteEditorScreen> {
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: Color(0xFF8A92A6),
+                      color: _kNSubHead,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -3426,17 +3473,17 @@ class NoteEditorScreenState extends State<NoteEditorScreen> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 14, vertical: 8),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF5F6FC),
+                            color: _kNPrimaryLight,
                             borderRadius: BorderRadius.circular(10),
                             border:
-                                Border.all(color: const Color(0xFFEFF1F7)),
+                                Border.all(color: const Color(0xFFDBEAFE)),
                           ),
                           child: Text(
                             sym,
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
-                              color: Color(0xFF4854F5),
+                              color: _kNPrimary,
                             ),
                           ),
                         ),
@@ -3449,7 +3496,7 @@ class NoteEditorScreenState extends State<NoteEditorScreen> {
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: Color(0xFF8A92A6),
+                      color: _kNSubHead,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -3467,10 +3514,10 @@ class NoteEditorScreenState extends State<NoteEditorScreen> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 14, vertical: 10),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFAFAFE),
+                            color: Colors.white,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                                color: const Color(0xFFEFF1F7)),
+                                color: _kNSep),
                           ),
                           child: Row(
                             children: [
@@ -3484,7 +3531,7 @@ class NoteEditorScreenState extends State<NoteEditorScreen> {
                                       style: const TextStyle(
                                         fontSize: 13,
                                         fontWeight: FontWeight.w700,
-                                        color: Color(0xFF1B1E36),
+                                        color: _kNHead,
                                       ),
                                     ),
                                     const SizedBox(height: 2),
@@ -3493,7 +3540,7 @@ class NoteEditorScreenState extends State<NoteEditorScreen> {
                                       style: const TextStyle(
                                         fontSize: 13,
                                         fontWeight: FontWeight.w500,
-                                        color: Color(0xFF4854F5),
+                                        color: _kNPrimary,
                                       ),
                                     ),
                                   ],
@@ -3502,7 +3549,7 @@ class NoteEditorScreenState extends State<NoteEditorScreen> {
                               const Icon(
                                 Icons.add_circle_outline_rounded,
                                 size: 18,
-                                color: Color(0xFF4854F5),
+                                color: _kNPrimary,
                               ),
                             ],
                           ),
@@ -3562,7 +3609,7 @@ class NoteEditorScreenState extends State<NoteEditorScreen> {
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF1B1E36),
+                    color: _kNHead,
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -3585,11 +3632,11 @@ class NoteEditorScreenState extends State<NoteEditorScreen> {
                           Navigator.pop(ctx);
                         }
                       },
-                      selectedColor: const Color(0xFF4854F5),
-                      backgroundColor: const Color(0xFFF3F4F8),
+                      selectedColor: _kNPrimary,
+                      backgroundColor: const Color(0xFFF8FAFC),
                       labelStyle: TextStyle(
                         color:
-                            isSelected ? Colors.white : const Color(0xFF1B1E36),
+                            isSelected ? Colors.white : _kNHead,
                         fontWeight: FontWeight.w600,
                         fontSize: 13,
                       ),
@@ -3597,8 +3644,8 @@ class NoteEditorScreenState extends State<NoteEditorScreen> {
                         borderRadius: BorderRadius.circular(12),
                         side: BorderSide(
                           color: isSelected
-                              ? const Color(0xFF4854F5)
-                              : const Color(0xFFEFF1F7),
+                              ? _kNPrimary
+                              : _kNSep,
                         ),
                       ),
                     );
@@ -3892,7 +3939,7 @@ class NoteEditorScreenState extends State<NoteEditorScreen> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 14, vertical: 6),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFAFAFE),
+                            color: const Color(0xFFF8FAFC),
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(color: _kNSep, width: 1.0),
                             boxShadow: [
@@ -3915,8 +3962,8 @@ class NoteEditorScreenState extends State<NoteEditorScreen> {
                                     fontWeight: FontWeight.w900,
                                     fontSize: 16,
                                     color: _isBoldActive
-                                        ? const Color(0xFF4854F5)
-                                        : const Color(0xFF1B1E36),
+                                        ? _kNPrimary
+                                        : _kNHead,
                                   ),
                                 ),
                                 tooltip: 'Bold',
@@ -3932,8 +3979,8 @@ class NoteEditorScreenState extends State<NoteEditorScreen> {
                                     fontWeight: FontWeight.w700,
                                     fontSize: 16,
                                     color: _isItalicActive
-                                        ? const Color(0xFF4854F5)
-                                        : const Color(0xFF1B1E36),
+                                        ? _kNPrimary
+                                        : _kNHead,
                                   ),
                                 ),
                                 tooltip: 'Italic',
@@ -3949,8 +3996,8 @@ class NoteEditorScreenState extends State<NoteEditorScreen> {
                                     fontWeight: FontWeight.w700,
                                     fontSize: 16,
                                     color: _isUnderlineActive
-                                        ? const Color(0xFF4854F5)
-                                        : const Color(0xFF1B1E36),
+                                        ? _kNPrimary
+                                        : _kNHead,
                                   ),
                                 ),
                                 tooltip: 'Underline',
@@ -3963,8 +4010,8 @@ class NoteEditorScreenState extends State<NoteEditorScreen> {
                                   _getAlignIconFor(_currentAlignment),
                                   size: 20,
                                   color: _currentAlignment != TextAlign.left
-                                      ? const Color(0xFF4854F5)
-                                      : const Color(0xFF1B1E36),
+                                      ? _kNPrimary
+                                      : _kNHead,
                                 ),
                                 tooltip:
                                     'Alignment: ${_getAlignNameFor(_currentAlignment)}',
@@ -3978,8 +4025,8 @@ class NoteEditorScreenState extends State<NoteEditorScreen> {
                                   Icons.format_list_bulleted_rounded,
                                   size: 20,
                                   color: _isBulletActive
-                                      ? const Color(0xFF4854F5)
-                                      : const Color(0xFF1B1E36),
+                                      ? _kNPrimary
+                                      : _kNHead,
                                 ),
                                 tooltip: 'Bulleted list',
                                 onTap: _toggleBulletList,
@@ -3991,8 +4038,8 @@ class NoteEditorScreenState extends State<NoteEditorScreen> {
                                   Icons.format_list_numbered_rounded,
                                   size: 20,
                                   color: _isNumberedActive
-                                      ? const Color(0xFF4854F5)
-                                      : const Color(0xFF1B1E36),
+                                      ? _kNPrimary
+                                      : _kNHead,
                                 ),
                                 tooltip: 'Numbered list',
                                 onTap: _toggleNumberedList,
@@ -4005,7 +4052,7 @@ class NoteEditorScreenState extends State<NoteEditorScreen> {
                                   style: TextStyle(
                                     fontWeight: FontWeight.w700,
                                     fontSize: 18,
-                                    color: Color(0xFF4854F5),
+                                    color: _kNPrimary,
                                   ),
                                 ),
                                 tooltip: 'Formulas & Math Symbols',
@@ -4052,8 +4099,8 @@ _SubjectStyle _getSubjectStyle(String subject, String title) {
       text.contains('newton') ||
       text.contains('quantum')) {
     return const _SubjectStyle(
-      color: Color(0xFF2563EB),
-      bgColor: Color(0xFFEFF6FF),
+      color: _kNPrimary,
+      bgColor: _kNPrimaryLight,
       isAtom: true,
     );
   }
@@ -4063,8 +4110,8 @@ _SubjectStyle _getSubjectStyle(String subject, String title) {
       text.contains('algebra') ||
       text.contains('integral')) {
     return const _SubjectStyle(
-      color: Color(0xFF7C3AED),
-      bgColor: Color(0xFFF5F3FF),
+      color: _kNPrimary,
+      bgColor: _kNPrimaryLight,
       icon: Icons.calculate_rounded,
     );
   }
@@ -4074,8 +4121,8 @@ _SubjectStyle _getSubjectStyle(String subject, String title) {
       text.contains('lit') ||
       text.contains('poem')) {
     return const _SubjectStyle(
-      color: Color(0xFF16A34A),
-      bgColor: Color(0xFFF0FDF4),
+      color: _kNPrimary,
+      bgColor: _kNPrimaryLight,
       icon: Icons.menu_book_rounded,
     );
   }
@@ -4084,16 +4131,16 @@ _SubjectStyle _getSubjectStyle(String subject, String title) {
       text.contains('organic') ||
       text.contains('reaction')) {
     return const _SubjectStyle(
-      color: Color(0xFFD97706),
-      bgColor: Color(0xFFFFFBEB),
+      color: _kNPrimary,
+      bgColor: _kNPrimaryLight,
       icon: Icons.biotech_rounded,
     );
   }
 
   if (text.contains('bio') || text.contains('cell') || text.contains('dna')) {
     return const _SubjectStyle(
-      color: Color(0xFF059669),
-      bgColor: Color(0xFFECFDF5),
+      color: _kNPrimary,
+      bgColor: _kNPrimaryLight,
       icon: Icons.spa_rounded,
     );
   }
@@ -4102,46 +4149,25 @@ _SubjectStyle _getSubjectStyle(String subject, String title) {
       text.contains('cs') ||
       text.contains('computer')) {
     return const _SubjectStyle(
-      color: Color(0xFF2563EB),
-      bgColor: Color(0xFFEFF6FF),
+      color: _kNPrimary,
+      bgColor: _kNPrimaryLight,
       icon: Icons.code_rounded,
     );
   }
 
   if (text.contains('urdu')) {
     return const _SubjectStyle(
-      color: Color(0xFFDB2777),
-      bgColor: Color(0xFFFDF2F8),
+      color: _kNPrimary,
+      bgColor: _kNPrimaryLight,
       icon: Icons.translate_rounded,
     );
   }
 
-  final hash = text.hashCode.abs() % 4;
-  if (hash == 0) {
-    return const _SubjectStyle(
-      color: Color(0xFF2563EB),
-      bgColor: Color(0xFFEFF6FF),
-      icon: Icons.description_rounded,
-    );
-  } else if (hash == 1) {
-    return const _SubjectStyle(
-      color: Color(0xFF7C3AED),
-      bgColor: Color(0xFFF5F3FF),
-      icon: Icons.bookmark_outline_rounded,
-    );
-  } else if (hash == 2) {
-    return const _SubjectStyle(
-      color: Color(0xFF0D9488),
-      bgColor: Color(0xFFF0FDFA),
-      icon: Icons.edit_note_rounded,
-    );
-  } else {
-    return const _SubjectStyle(
-      color: Color(0xFF64748B),
-      bgColor: Color(0xFFF8FAFC),
-      icon: Icons.description_rounded,
-    );
-  }
+  return const _SubjectStyle(
+    color: _kNPrimary,
+    bgColor: _kNPrimaryLight,
+    icon: Icons.article_rounded,
+  );
 }
 
 String _estimateNoteSize(NoteItem note) {
@@ -4280,26 +4306,30 @@ class _NoteCard extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(14, 13, 8, 13),
             child: Row(
               children: [
-                // Subject / Note circular icon
+                // Consistent Subject / Note circular icon matching Home screen theme
                 Container(
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: badgeStyle.bgColor,
+                    color: _kNPrimaryLight,
                     shape: BoxShape.circle,
+                    border: Border.all(
+                      color: const Color(0xFFDBEAFE),
+                      width: 0.8,
+                    ),
                   ),
                   alignment: Alignment.center,
                   child: badgeStyle.isAtom
-                      ? SizedBox(
+                      ? const SizedBox(
                           width: 22,
                           height: 22,
                           child: CustomPaint(
-                            painter: _AtomIconPainter(badgeStyle.color),
+                            painter: _AtomIconPainter(_kNPrimary),
                           ),
                         )
                       : Icon(
                           badgeStyle.icon,
-                          color: badgeStyle.color,
+                          color: _kNPrimary,
                           size: 21,
                         ),
                 ),
@@ -4331,24 +4361,28 @@ class _NoteCard extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          // Subject pill badge
+                          // Subject pill badge with unified light-blue theme
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 8,
                               vertical: 2.5,
                             ),
                             decoration: BoxDecoration(
-                              color: badgeStyle.bgColor,
+                              color: _kNPrimaryLight,
                               borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: const Color(0xFFDBEAFE),
+                                width: 0.8,
+                              ),
                             ),
                             child: Text(
                               note.subject.trim().isNotEmpty
                                   ? note.subject
                                   : 'General',
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
-                                color: badgeStyle.color,
+                                color: _kNPrimary,
                                 letterSpacing: -0.1,
                               ),
                             ),
@@ -4463,7 +4497,7 @@ class _DialogField extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFF5F6FF),
+        color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: _kNSep),
       ),
@@ -4524,10 +4558,10 @@ class _ToolbarItem extends StatelessWidget {
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
-            color: isActive ? const Color(0xFFEDE9FE) : Colors.transparent,
+            color: isActive ? _kNPrimaryLight : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: isActive ? const Color(0xFFC7D2FE) : Colors.transparent,
+              color: isActive ? const Color(0xFFBFDBFE) : Colors.transparent,
               width: 1.0,
             ),
           ),

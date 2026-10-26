@@ -1042,5 +1042,46 @@ void main() {
     expect(find.text('Calculus Derivatives & Integrals'), findsOneWidget);
     expect(find.text("Newton's Laws of Motion Summary"), findsNothing);
   });
+
+  testWidgets(
+      'Test Subject Category cards horizontal scrolling and peek affordance',
+      (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues({});
+    NotesScreen.resetForTesting();
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: NotesScreen(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Verify initial categories visible
+    expect(find.text('Subject Categories'), findsOneWidget);
+    expect(find.text('Physics'), findsWidgets);
+    expect(find.text('Mathematics'), findsWidgets);
+    expect(find.text('English'), findsWidgets);
+
+    // Find the horizontal category list
+    final categoryListFinder = find.byWidgetPredicate(
+      (w) => w is ListView && w.scrollDirection == Axis.horizontal,
+    );
+    expect(categoryListFinder, findsOneWidget);
+
+    // Swipe horizontally to the left to scroll and view remaining categories
+    await tester.drag(categoryListFinder, const Offset(-400, 0));
+    await tester.pumpAndSettle();
+
+    // Verify that later categories are now scrolled into view
+    expect(find.text('Others'), findsWidgets);
+
+    // Swipe back to the right
+    await tester.drag(categoryListFinder, const Offset(400, 0));
+    await tester.pumpAndSettle();
+
+    // Physics and Mathematics are back in view
+    expect(find.text('Physics'), findsWidgets);
+    expect(find.text('Mathematics'), findsWidgets);
+  });
 }
 
