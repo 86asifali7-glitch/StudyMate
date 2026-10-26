@@ -973,12 +973,6 @@ class _HomeScreenState extends State<HomeScreen>
                           ],
                         ),
                       ),
-                      // Three dots options icon
-                      const Icon(
-                        Icons.more_horiz_rounded,
-                        color: _kTextBody,
-                        size: 20,
-                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
