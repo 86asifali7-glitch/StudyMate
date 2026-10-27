@@ -275,4 +275,64 @@ void main() {
     );
     expect(deleteButtonMaterial.color, const Color(0xFFFEF2F2));
   });
+
+  testWidgets(
+      'Subject icons dynamically adapt to subject names with proper theme and fallbacks',
+      (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues({});
+    TimetableScreen.resetForTesting();
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: TimetableScreen(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Monday defaults:
+    // 1. Calculus II -> Mathematics -> calculator icon
+    expect(find.byIcon(Icons.calculate_rounded), findsOneWidget);
+
+    // 2. Physics Mechanics -> atom icon custom painter
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is CustomPaint && w.painter.runtimeType.toString() == '_AtomIconPainter',
+      ),
+      findsOneWidget,
+    );
+
+    // 3. Computer Architecture -> laptop icon
+    expect(find.byIcon(Icons.laptop_chromebook_rounded), findsOneWidget);
+
+    // Switch to Tuesday
+    await tester.tap(find.byKey(const Key('day_tab_Tue')));
+    await tester.pumpAndSettle();
+
+    // Tuesday defaults:
+    // Data Structures -> laptop / CS icon
+    // Technical Writing -> book / writing icon
+    expect(find.byIcon(Icons.menu_book_rounded), findsOneWidget);
+
+    // Add a class with "Organic Chemistry"
+    await tester.tap(find.byKey(const Key('add_class_header_button')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('class_subject_field')), 'Organic Chemistry');
+    await tester.tap(find.byKey(const Key('save_class_button')));
+    await tester.pumpAndSettle();
+
+    // Organic Chemistry -> flask / science icon
+    expect(find.byIcon(Icons.science_rounded), findsOneWidget);
+
+    // Add a class with "General Knowledge" -> fallback school icon
+    await tester.tap(find.byKey(const Key('add_class_header_button')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('class_subject_field')), 'General Knowledge');
+    await tester.tap(find.byKey(const Key('save_class_button')));
+    await tester.pumpAndSettle();
+
+    // General Knowledge -> fallback school icon
+    expect(find.byIcon(Icons.school_rounded), findsOneWidget);
+  });
 }

@@ -1036,6 +1036,237 @@ class _TimetableScreenState extends State<TimetableScreen> {
   }
 }
 
+// ─── Subject Icon Data & Atom Painter ────────────────────────────────────────
+class _AtomIconPainter extends CustomPainter {
+  final Color color;
+  const _AtomIconPainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.8;
+
+    // Nucleus
+    canvas.drawCircle(Offset(cx, cy), 3.0, Paint()..color = color);
+
+    // Orbit 1: horizontal
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(cx, cy),
+        width: size.width * 0.90,
+        height: size.height * 0.36,
+      ),
+      paint,
+    );
+
+    // Orbit 2: 60 degrees
+    canvas.save();
+    canvas.translate(cx, cy);
+    canvas.rotate(1.047);
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset.zero,
+        width: size.width * 0.90,
+        height: size.height * 0.36,
+      ),
+      paint,
+    );
+    canvas.restore();
+
+    // Orbit 3: -60 degrees
+    canvas.save();
+    canvas.translate(cx, cy);
+    canvas.rotate(-1.047);
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset.zero,
+        width: size.width * 0.90,
+        height: size.height * 0.36,
+      ),
+      paint,
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _AtomIconPainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+
+class _SubjectIconData {
+  final IconData? icon;
+  final bool isAtom;
+  const _SubjectIconData({this.icon, this.isAtom = false});
+}
+
+_SubjectIconData _getSubjectIcon(String subjectName) {
+  final s = subjectName.trim().toLowerCase();
+
+  // Physics: atom
+  if (s.contains('physic') ||
+      s.contains('quantum') ||
+      s.contains('mechanic') ||
+      s.contains('astronomy') ||
+      s.contains('astro') ||
+      s.contains('thermodynamic')) {
+    return const _SubjectIconData(isAtom: true);
+  }
+
+  // Mathematics: calculator or function symbol
+  if (s.contains('math') ||
+      s.contains('calculus') ||
+      s.contains('algebra') ||
+      s.contains('geometry') ||
+      s.contains('statistic') ||
+      s.contains('arithmetic') ||
+      s.contains('trigonometry') ||
+      s.contains('equation')) {
+    return const _SubjectIconData(icon: Icons.calculate_rounded);
+  }
+
+  // Chemistry: flask
+  if (s.contains('chem') ||
+      s.contains('organic') ||
+      s.contains('reaction') ||
+      s.contains('biochem')) {
+    return const _SubjectIconData(icon: Icons.science_rounded);
+  }
+
+  // Biology: leaf or microscope
+  if (s.contains('bio') ||
+      s.contains('botany') ||
+      s.contains('zoology') ||
+      s.contains('genetic') ||
+      s.contains('anatomy') ||
+      s.contains('ecology') ||
+      s.contains('cell')) {
+    return const _SubjectIconData(icon: Icons.eco_rounded);
+  }
+
+  // English: book or text
+  if (s.contains('english') ||
+      s.contains('writing') ||
+      s.contains('literature') ||
+      s.contains('essay') ||
+      s.contains('grammar') ||
+      s.contains('reading') ||
+      s.contains('linguistic') ||
+      s.contains('poetry')) {
+    return const _SubjectIconData(icon: Icons.menu_book_rounded);
+  }
+
+  // Computer Science: laptop or code
+  if (s.contains('computer') ||
+      s.contains('cs') ||
+      s.contains('code') ||
+      s.contains('coding') ||
+      s.contains('programming') ||
+      s.contains('software') ||
+      s.contains('data structure') ||
+      s.contains('algorithm') ||
+      s.contains('hardware') ||
+      s.contains('network') ||
+      s.contains('architecture') ||
+      s.contains('cyber') ||
+      s.contains('database') ||
+      s.contains('web dev') ||
+      s.contains('technology') ||
+      s.contains('information tech') ||
+      s.contains('tech ') ||
+      s.endsWith('tech')) {
+    return const _SubjectIconData(icon: Icons.laptop_chromebook_rounded);
+  }
+
+  // Urdu: book or pen
+  if (s.contains('urdu')) {
+    return const _SubjectIconData(icon: Icons.history_edu_rounded);
+  }
+
+  // Islamic Studies: book
+  if (s.contains('islam') ||
+      s.contains('islamiat') ||
+      s.contains('quran') ||
+      s.contains('theology') ||
+      s.contains('religion') ||
+      s.contains('hadith') ||
+      s.contains('ethics')) {
+    return const _SubjectIconData(icon: Icons.auto_stories_rounded);
+  }
+
+  // History / Civics / Social Studies
+  if (s.contains('history') ||
+      s.contains('civic') ||
+      s.contains('social study') ||
+      s.contains('social studies')) {
+    return const _SubjectIconData(icon: Icons.account_balance_rounded);
+  }
+
+  // Geography / Earth Science / Geology
+  if (s.contains('geograph') ||
+      s.contains('geology') ||
+      s.contains('earth science')) {
+    return const _SubjectIconData(icon: Icons.public_rounded);
+  }
+
+  // Economics / Business / Accounting / Finance
+  if (s.contains('econom') ||
+      s.contains('finance') ||
+      s.contains('accounting') ||
+      s.contains('business') ||
+      s.contains('commerce')) {
+    return const _SubjectIconData(icon: Icons.trending_up_rounded);
+  }
+
+  // Art / Drawing / Design
+  if (s.contains('art') ||
+      s.contains('draw') ||
+      s.contains('paint') ||
+      s.contains('design')) {
+    return const _SubjectIconData(icon: Icons.palette_rounded);
+  }
+
+  // Music
+  if (s.contains('music') || s.contains('audio') || s.contains('song')) {
+    return const _SubjectIconData(icon: Icons.music_note_rounded);
+  }
+
+  // Physical Education / Sports / Gym
+  if (s.contains('physical education') ||
+      s.contains('pe') ||
+      s.contains('sport') ||
+      s.contains('gym') ||
+      s.contains('fitness')) {
+    return const _SubjectIconData(icon: Icons.fitness_center_rounded);
+  }
+
+  // Foreign Languages
+  if (s.contains('french') ||
+      s.contains('spanish') ||
+      s.contains('german') ||
+      s.contains('arabic') ||
+      s.contains('chinese') ||
+      s.contains('language')) {
+    return const _SubjectIconData(icon: Icons.translate_rounded);
+  }
+
+  // Psychology / Philosophy
+  if (s.contains('psycholog') || s.contains('philosoph')) {
+    return const _SubjectIconData(icon: Icons.psychology_rounded);
+  }
+
+  // Law
+  if (s.contains('law') || s.contains('legal')) {
+    return const _SubjectIconData(icon: Icons.gavel_rounded);
+  }
+
+  // Neutral fallback icon
+  return const _SubjectIconData(icon: Icons.school_rounded);
+}
+
 // ─── Timetable Card matching reference image ─────────────────────────────────
 class _TimetableCard extends StatelessWidget {
   final TimetableEntry entry;
@@ -1051,6 +1282,8 @@ class _TimetableCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final subjectIcon = _getSubjectIcon(entry.subject);
+
     return Container(
       decoration: BoxDecoration(
         color: _kCardBg,
@@ -1092,7 +1325,7 @@ class _TimetableCard extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                     child: Row(
                       children: [
-                        // Blue Clock Icon inside light-blue rounded-square background
+                        // Subject Icon inside light-blue rounded-square background
                         Container(
                           width: 44,
                           height: 44,
@@ -1100,12 +1333,20 @@ class _TimetableCard extends StatelessWidget {
                             color: _kLavenderSoft,
                             borderRadius: BorderRadius.circular(14),
                           ),
-                          child: const Center(
-                            child: Icon(
-                              Icons.access_time_rounded,
-                              color: _kPrimaryBlue,
-                              size: 22,
-                            ),
+                          child: Center(
+                            child: subjectIcon.isAtom
+                                ? const SizedBox(
+                                    width: 22,
+                                    height: 22,
+                                    child: CustomPaint(
+                                      painter: _AtomIconPainter(_kPrimaryBlue),
+                                    ),
+                                  )
+                                : Icon(
+                                    subjectIcon.icon ?? Icons.school_rounded,
+                                    color: _kPrimaryBlue,
+                                    size: 22,
+                                  ),
                           ),
                         ),
 
